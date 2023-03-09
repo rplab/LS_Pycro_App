@@ -1,0 +1,16 @@
+#Copy paste one or multiple lines to cmd to convert to py files
+
+
+python -m PyQt5.uic.pyuic "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\AbortDialog.ui" -o "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\abort_dialog.py"  -x
+
+python -m PyQt5.uic.pyuic "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\AcqDialog.ui" -o "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\acq_dialog.py"  -x
+
+python -m PyQt5.uic.pyuic "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\AcqOrderDialog.ui" -o "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\acq_order_dialog.py"  -x
+
+python -m PyQt5.uic.pyuic "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\AcqRegionsDialog.ui" -o "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\acq_regions_dialog.py"  -x
+
+python -m PyQt5.uic.pyuic "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\AcqSettingsDialog.ui" -o "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\acq_settings_dialog.py"  -x
+
+python -m PyQt5.uic.pyuic "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\GalvoDialog.ui" -o "C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui_files\galvo_dialog.py"  -x
+
+
