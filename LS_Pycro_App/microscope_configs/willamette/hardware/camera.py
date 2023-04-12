@@ -1,10 +1,8 @@
-import logging
 from hardware.exceptions_handle import handle_exception
 from hardware.camera import Camera
 from utils.pycro import studio, core
 
-
-class PcoEdge(Camera):
+class Camera(Camera):
     #Can't seem to figure out what the max or min is for PCO. Isn't clear in documentation.
     MAX_EXPOSURE = 2000
     MIN_EXPOSURE = .010

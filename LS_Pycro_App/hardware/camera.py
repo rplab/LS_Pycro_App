@@ -7,6 +7,7 @@ from utils.pycro import studio, core
 
 @abstractattributes
 class Camera(ABC):
+    #"abstract attributes" Interpreter will throw an error if the following aren't declared.
     MAX_EXPOSURE : float
     MIN_EXPOSURE : float
 

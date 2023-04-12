@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\microscope_configs\klamath\views\ui_files\KlaMainWindow.ui'
+# Form implementation generated from reading ui file 'C:\Users\Will LSM\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\microscope_configs\willamette\views\ui_files\WilMainWindow.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.7
 #
@@ -14,25 +14,22 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(511, 263)
+        MainWindow.resize(417, 228)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
-        self.galvo_button = QtWidgets.QPushButton(self.centralwidget)
-        self.galvo_button.setGeometry(QtCore.QRect(110, 100, 101, 31))
-        self.galvo_button.setObjectName("galvo_button")
         self.lsfm_label = QtWidgets.QLabel(self.centralwidget)
-        self.lsfm_label.setGeometry(QtCore.QRect(30, 0, 451, 61))
+        self.lsfm_label.setGeometry(QtCore.QRect(-20, 0, 451, 61))
         self.lsfm_label.setLayoutDirection(QtCore.Qt.LeftToRight)
         self.lsfm_label.setObjectName("lsfm_label")
         self.regions_button = QtWidgets.QPushButton(self.centralwidget)
-        self.regions_button.setGeometry(QtCore.QRect(280, 100, 111, 31))
+        self.regions_button.setGeometry(QtCore.QRect(150, 90, 111, 31))
         self.regions_button.setObjectName("regions_button")
         self.exit_button = QtWidgets.QPushButton(self.centralwidget)
-        self.exit_button.setGeometry(QtCore.QRect(200, 180, 111, 31))
+        self.exit_button.setGeometry(QtCore.QRect(150, 150, 111, 31))
         self.exit_button.setObjectName("exit_button")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 511, 21))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 417, 21))
         self.menubar.setObjectName("menubar")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
@@ -45,13 +42,6 @@ class Ui_MainWindow(object):
     def retranslateUi(self, MainWindow):
         _translate = QtCore.QCoreApplication.translate
         MainWindow.setWindowTitle(_translate("MainWindow", "Main Window"))
-        self.galvo_button.setText(_translate("MainWindow", "Galvo Setup"))
-        self.lsfm_label.setText(_translate("MainWindow", "<html><head/><body><p align=\"center\"><span style=\" font-size:18pt;\">Klamath LSFM Control Software</span></p></body></html>"))
-        self.regions_button.setText(_translate("MainWindow", "Regions Setup"))
+        self.lsfm_label.setText(_translate("MainWindow", "<html><head/><body><p align=\"center\"><span style=\" font-size:18pt;\">Willamette LSFM Control Software</span></p></body></html>"))
+        self.regions_button.setText(_translate("MainWindow", "CLS Setup"))
         self.exit_button.setText(_translate("MainWindow", "Exit"))
-
-
-class MainWindow(QtWidgets.QMainWindow, Ui_MainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setupUi(self) 

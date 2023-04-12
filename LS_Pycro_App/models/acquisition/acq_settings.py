@@ -506,7 +506,7 @@ class AcqSettings():
                 break
             region_num += 1 
 
-    def update_acq_settings(self):
+    def update(self):
         AcqSettings.update_image_size()
         self.update_num_images()
         self.fix_channel_list_order()

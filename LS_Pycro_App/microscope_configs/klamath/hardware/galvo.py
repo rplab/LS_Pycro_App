@@ -1,4 +1,4 @@
 from hardware.galvo import Galvo
 
-class KlaGalvo(Galvo):
+class Galvo(Galvo):
     pass

@@ -1,6 +1,5 @@
-import numpy as np
 from enum import Enum
-from utils import constants, general_functions, user_config
+from utils import user_config, general_functions
 
 class AdvSettings():
     """
@@ -51,28 +50,13 @@ class AdvSettings():
     """
 
     def __init__(self):
-        self.spectral_z_stack_enabled: bool = False
         self.speed_list: list[int] = [15, 30]
         self.z_stack_stage_speed: int = 30
-        self.z_stack_exposure: float = general_functions.z_stack_speed_to_exposure(self.z_stack_stage_speed)
+        self.spectral_z_stack_enabled: bool = False
         self.spectral_video_enabled: bool = False
         self.acq_order = AcqOrder.TIME_SAMP
         self.backup_directory_enabled: bool = False
-        self.backup_directory: str = 'F:/'
-    
-    @property
-    def z_stack_exposure(self):
-        return self._z_stack_exposure
-    
-    @z_stack_exposure.setter
-    def z_stack_exposure(self, value):
-        #Maximum exp when performing continuous z-stack is floor(1/z_stack_speed) due to how the triggering works. 
-        #This makes it so that if continuous z-stack is enabled and an exp time greater than this vaolue is entered, 
-        #it is corrected.
-        if not self.spectral_z_stack_enabled:
-            self._z_stack_exposure = round(min(np.floor(1/(self.z_stack_stage_speed*constants.UM_TO_MM)), value), 3)
-        else:
-            self._z_stack_exposure = value
+        self.backup_directory: str = "F:/"
 
     def write_to_config(self):
         user_config.write_class(self)

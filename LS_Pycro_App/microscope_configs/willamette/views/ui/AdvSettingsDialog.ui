@@ -17,7 +17,7 @@
    <property name="geometry">
     <rect>
      <x>300</x>
-     <y>30</y>
+     <y>40</y>
      <width>81</width>
      <height>22</height>
     </rect>
@@ -55,7 +55,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Z-Stack Settings</string>
+    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Z-Stack Settings&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
@@ -113,7 +113,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Video Settings</string>
+    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Video Settings&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
@@ -191,14 +191,14 @@
   <widget class="QLabel" name="acq_order_label">
    <property name="geometry">
     <rect>
-     <x>290</x>
-     <y>0</y>
-     <width>91</width>
+     <x>270</x>
+     <y>10</y>
+     <width>131</width>
      <height>20</height>
     </rect>
    </property>
    <property name="text">
-    <string>Acquisition Order:</string>
+    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Acquisition Order:&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
@@ -208,7 +208,7 @@
    <property name="geometry">
     <rect>
      <x>240</x>
-     <y>130</y>
+     <y>150</y>
      <width>91</width>
      <height>20</height>
     </rect>
@@ -221,7 +221,7 @@
    <property name="geometry">
     <rect>
      <x>300</x>
-     <y>100</y>
+     <y>120</y>
      <width>75</width>
      <height>23</height>
     </rect>
@@ -237,7 +237,7 @@
    <property name="geometry">
     <rect>
      <x>340</x>
-     <y>130</y>
+     <y>150</y>
      <width>81</width>
      <height>20</height>
     </rect>
@@ -250,7 +250,7 @@
    <property name="geometry">
     <rect>
      <x>280</x>
-     <y>80</y>
+     <y>100</y>
      <width>121</width>
      <height>20</height>
     </rect>
@@ -306,7 +306,7 @@
    <property name="geometry">
     <rect>
      <x>220</x>
-     <y>50</y>
+     <y>70</y>
      <width>491</width>
      <height>20</height>
     </rect>
@@ -324,6 +324,22 @@
    </property>
    <property name="orientation">
     <enum>Qt::Horizontal</enum>
+   </property>
+  </widget>
+  <widget class="QLabel" name="backup_directory_label">
+   <property name="geometry">
+    <rect>
+     <x>270</x>
+     <y>80</y>
+     <width>131</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Backup Directory&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
    </property>
   </widget>
  </widget>

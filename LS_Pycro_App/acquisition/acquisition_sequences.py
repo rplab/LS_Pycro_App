@@ -3,9 +3,9 @@ import numpy as np
 import logging
 from abc import ABC, abstractmethod
 from copy import deepcopy
-from hardware import stage
+from hardware import Stage
 from utils import constants, dir_functions, exceptions
-from views.shared import AcqDialog
+from views.py import AcqDialog
 from models.acquisition.acq_settings import AcqSettings, Fish, Region
 from models.acquisition.acq_directory import AcqDirectory
 from acquisition import imaging_sequences
@@ -51,11 +51,11 @@ class AcquisitionSequence(ABC):
     
     def _is_time_point_left(self, time_point):
         if self._acq_settings.time_points_enabled:
-            time_points_left = self._acq_settings.num_time_points - time_point
-            is_time_point_left = time_points_left > 1
+            num_time_points_left = self._acq_settings.num_time_points - time_point
+            time_point_left = num_time_points_left > 1
         else:
-            is_time_point_left = False
-        return is_time_point_left
+            time_point_left = False
+        return time_point_left
 
     def _wait_for_next_time_point(self, start_time):
         while self._time_remaining(start_time) > 0:
@@ -146,9 +146,9 @@ class AcquisitionSequence(ABC):
         self._abort_check()
         self._status_update("Moving to region")
         if region.z_stack_enabled and not (region.snap_enabled or region.video_enabled):
-            stage.move_stage(region.x_pos, region.y_pos, region.z_stack_start_pos)
+            Stage.move_stage(region.x_pos, region.y_pos, region.z_stack_start_pos)
         else:
-            stage.move_stage(region.x_pos, region.y_pos, region.z_pos)
+            Stage.move_stage(region.x_pos, region.y_pos, region.z_pos)
 
     def _get_start_region(self, start_fish_num):
         for fish in self._acq_settings.fish_list[start_fish_num:]:
@@ -161,7 +161,7 @@ class AcquisitionSequence(ABC):
 
     # directory methods
     def _update_directory(self, fish: Fish):
-        if not (self._second_path_in_root() or self._is_enough_space(fish)):
+        if not (self._second_path_in_root() or self._is_enough_space(fish)) and self._adv_settings.backup_directory_enabled:
             self._acq_directory.change_root(self._adv_settings.backup_directory)
 
     def _second_path_in_root(self):
@@ -266,7 +266,7 @@ class TimeSampAcquisition(AcquisitionSequence):
 
 class SampTimeAcquisition(AcquisitionSequence):
     def run_acquisition(self):
-        if not self._get_start_region()[0]:
+        if not self._get_start_region(0)[0]:
             raise exceptions.AbortAcquisitionException("No valid region for imaging")
         self._acquire_fish()
 
@@ -275,7 +275,7 @@ class SampTimeAcquisition(AcquisitionSequence):
         while True:
             self._abort_check()
             start_region, fish_num = self._get_start_region(fish_num)
-            if not start_region or not fish_num:
+            if not start_region:
                 break
             fish = self._acq_settings.fish_list[fish_num]
 
@@ -310,16 +310,17 @@ class PositionTimeAcquisition(AcquisitionSequence):
 
             self._run_imaging_sequences(region)
             if self._is_time_point_left(time_point):
+                Stage.set_z_position(region.z_pos)
                 self._wait_for_next_time_point(start_time)
             else:
                 break
 
     def _acquire_regions(self):
         for fish_num, fish in enumerate(self._acq_settings.fish_list):
-            self._fish_num_update(fish_num)
             for region_num, region in enumerate(fish.region_list):
                 self._abort_check()
                 if region.is_imaging_enabled():
+                    self._fish_num_update(fish_num)
                     self._region_num_update(region_num)
 
                     self._move_to_region(region)

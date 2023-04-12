@@ -133,7 +133,7 @@ class summary_metadata_builder():
         #default 1 is set for each coord so that the axes appear in the metadata. If nothing or 0 are set for an axis 
         #and coords is built, it won't appear.
         self._intended_builder = image_coords_builder().c(1).z(1).t(1).p(1)
-        self._summary_builder = JavaObject("org.micromanager.data.internal.DefaultSummaryMetadata$Builder")
+        self._summary_builder = studio.acquisitions().generate_summary_metadata().copy_builder()
     
     def channel_list(self, channels):
         self._axis_order.add(_C_AXIS)
@@ -164,6 +164,10 @@ class summary_metadata_builder():
         self._axis_order.add(_P_AXIS)
         self._intended_builder.p(num_p)
         return self
+    
+    def _start_date(self):
+        self._summary_builder.start_date(str(datetime.now()))
+        return self
 
     def step(self, step_size):
         self._summary_builder.z_step_um(step_size)
@@ -171,10 +175,6 @@ class summary_metadata_builder():
     
     def interval_ms(self, interval_ms):
         self._summary_builder.wait_interval(interval_ms)
-        return self
-
-    def _start_date(self):
-        self._summary_builder.start_date(str(datetime.now()))
         return self
 
     def _finalize_axis_order(self):
@@ -218,7 +218,7 @@ class image_metadata_builder():
     """
 
     def __init__(self, image):
-        self._meta_builder = image.get_metadata().copy_builder_preserving_uuid()
+        self._meta_builder = studio.acquisitions().generate_metadata(image, False).copy_builder_preserving_uuid()
 
     def x(self, x_pos):
         self._meta_builder.x_position_um(x_pos)

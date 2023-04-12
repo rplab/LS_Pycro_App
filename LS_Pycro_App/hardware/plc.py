@@ -7,6 +7,7 @@ from utils.pycro import core
 
 @abstractattributes
 class Plc():
+    #"abstract attributes" Interpreter will throw an error if the following aren't declared.
     _ADDR_CAM_OUT : int
     _ADDR_STAGE_TTL : int
 

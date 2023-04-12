@@ -23,7 +23,7 @@ all methods that rely on an instance of AcquisitionSettings should be set in acq
 
 import contextlib
 from abc import ABC, abstractmethod
-from hardware import camera, plc, stage
+from hardware import Camera, Plc, Stage
 from models.acquisition.acq_settings import AcqSettings, Region
 from models.acquisition.acq_directory import AcqDirectory
 from utils import dir_functions, exceptions, pycro
@@ -137,7 +137,7 @@ class SequenceAcquisition(ImageAcquisition, ABC):
         """
         # PLC is set to continuously pulse because when camera freezes in external trigger mode, it sometimes
         # won't allow you to set its properties without an external trigger, so this provides a trigger.
-        plc.set_plc_for_continuous_lsrm(20)
+        Plc.set_plc_for_continuous_lsrm(20)
         core.stop_sequence_acquisition()
         core.clear_circular_buffer()
         self.close_datastore()
@@ -208,7 +208,7 @@ class SnapAcquisition(ImageAcquisition, ABC):
         """
         snaps a single image and puts it in datastore
         """
-        camera.snap_image()
+        Camera.snap_image()
         image = self._pop_image_with_metadata(frame_num)
         self._datastore.put_image(image)
 
@@ -269,7 +269,7 @@ class Video(SequenceAcquisition):
         return image.copy_with(coords, meta)
 
     def _begin_sequence_acquisition(self):
-        camera.start_sequence_acquisition(self._region.video_num_frames)
+        Camera.start_sequence_acquisition(self._region.video_num_frames)
 
     def run(self):
         self._pre_acquire_hardware_init()
@@ -356,8 +356,8 @@ class ZStack(SequenceAcquisition):
     
     def _begin_sequence_acquisition(self):
         self._initialize_z_stack()
-        camera.start_sequence_acquisition(self._region.get_z_stack_num_frames())
-        stage.scan_start(self._adv_settings.z_stack_stage_speed)
+        Camera.start_sequence_acquisition(self._region.get_z_stack_num_frames())
+        Stage.scan_start(self._adv_settings.z_stack_stage_speed)
 
     def _calculate_z_pos(self, slice_num: int):
         if self._region.z_stack_start_pos <= self._region.z_stack_end_pos:
@@ -370,9 +370,9 @@ class ZStack(SequenceAcquisition):
         if not self._acq_settings._is_step_size_same():
             step_size = self._region.z_stack_step_size
             stage_speed = self._adv_settings.z_stack_stage_speed
-            plc.set_plc_for_z_stack(step_size, stage_speed)
-        stage.set_z_position(self._region.z_stack_start_pos)
-        stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
+            Plc.set_plc_for_z_stack(step_size, stage_speed)
+        Stage.set_z_position(self._region.z_stack_start_pos)
+        Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
 
     def run(self):
         self._pre_acquire_hardware_init()
@@ -405,7 +405,7 @@ class SpectralZStack(ZStack, SnapAcquisition):
         slice_num = 0
         while slice_num < self._region.get_z_stack_num_frames():
             self._abort_check()
-            stage.set_z_position(self._calculate_z_pos(slice_num))
+            Stage.set_z_position(self._calculate_z_pos(slice_num))
             for channel_num, channel in enumerate(channels):
                 self._abort_check()
                 self._set_channel(channel)

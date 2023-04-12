@@ -1,4 +1,4 @@
 from models.galvo.galvo_settings import GalvoSettings
 
-class KlaGalvoSettings(GalvoSettings):
+class GalvoSettings(GalvoSettings):
     pass

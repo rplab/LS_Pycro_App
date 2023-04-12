@@ -19,7 +19,7 @@ def value_in_range(value, bot, top):
     return max(min(top, value), bot)
 
 
-def get_str_from_float(value: float, num_decimals: int) -> str:
+def float_to_str(value: float, num_decimals: int) -> str:
     return f"%.{num_decimals}f" % value
 
 

@@ -1,14 +1,12 @@
+from functools import wraps
 import inspect
 import logging
-from functools import wraps
 from typing import Callable
 from utils.exceptions import GeneralHardwareException
-
 
 #TODO Test hardware for raise exceptions and add specific exception handling from exceptions raised in
 #methods themselves.
 def handle_exception(funct: Callable):
-    @wraps(funct)
     def wrapper(*args, **kwargs):
         logger = logging.getLogger(inspect.getmodule(funct).__name__)
         
@@ -22,7 +20,7 @@ def handle_exception(funct: Callable):
                     message += ", reattempting"
                 logger.exception(message)
             else:
-                logger.info(f"{funct.__name__} completed")
+                logger.info(f"{funct.__name__}() completed")
                 return return_value
         
         message = f"{funct.__name__} failed. Check device, logs, and MM Core logs"

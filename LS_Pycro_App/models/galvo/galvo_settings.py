@@ -1,5 +1,6 @@
 from utils import user_config, general_functions
 
+
 class GalvoSettings(object):
     """
     Class that holds all settings changed by Spim Galvo Dialog. Also holds all business
@@ -48,7 +49,7 @@ class GalvoSettings(object):
         in camera module.
 
     ##Future Changes:
-    
+
     - I decided not to abstract this class because currently the Klamath setup is the only one with computer-based
     galvo control. If Willamette ever gets this, will have to think more about abstraction.
     """
@@ -57,10 +58,10 @@ class GalvoSettings(object):
     CAM_CHANNEL = "Dev1/Ctr0"
     PLC_INPUT_CHANNEL = 'PFI0'
     DSLM_NUM_SAMPLES = 600
-    DSLM_FREQ = 1000
+    DSLM_FREQ = 200
     DSLM_SAMPLE_RATE = DSLM_NUM_SAMPLES*DSLM_FREQ
     LSRM_NUM_SAMPLES = 2048
-    #default pulse time is .01 seconds, which is too long considering the maximum framerate is 100 fps, or 1 ms exposure
+    # default pulse time is .01 seconds, which is too long considering the maximum framerate is 100 fps, or 1 ms exposure
     PULSE_TIME_S = .0001
 
     OFFSET_BOT_LIMIT = -3
@@ -86,13 +87,16 @@ class GalvoSettings(object):
         self._lsrm_framerate = 15
         self._lsrm_laser_delay = 0.500
         self._lsrm_cam_delay = 0.
-        self.lsrm_ili = 1/(GalvoSettings.LSRM_NUM_SAMPLES * (self._lsrm_framerate + 1))
+        self.lsrm_ili = 1/(self.get_lsrm_sample_rate())
         self._lsrm_num_lines = 30
+
+    def get_lsrm_sample_rate(self):
+        return self.LSRM_NUM_SAMPLES*(self.lsrm_framerate + 1)
 
     @property
     def focus(self):
         return self._focus
-    
+
     @focus.setter
     def focus(self, value):
         self._focus = round(general_functions.value_in_range(value, self.FOCUS_BOT_LIMIT, self.FOCUS_TOP_LIMIT), 3)
@@ -100,74 +104,84 @@ class GalvoSettings(object):
     @property
     def dslm_offset(self):
         return self._dslm_offset
-    
+
     @dslm_offset.setter
     def dslm_offset(self, value):
-        self._dslm_offset = round(general_functions.value_in_range(value, self.OFFSET_BOT_LIMIT, self.OFFSET_TOP_LIMIT), 3)
+        self._dslm_offset = round(general_functions.value_in_range(
+            value, self.OFFSET_BOT_LIMIT, self.OFFSET_TOP_LIMIT), 3)
 
     @property
     def dslm_scan_width(self):
         return self._dslm_scan_width
-    
+
     @dslm_scan_width.setter
     def dslm_scan_width(self, value):
-        self._dslm_scan_width = round(general_functions.value_in_range(value, self.WIDTH_BOT_LIMIT, self.WIDTH_TOP_LIMIT), 3)
+        self._dslm_scan_width = round(general_functions.value_in_range(
+            value, self.WIDTH_BOT_LIMIT, self.WIDTH_TOP_LIMIT), 3)
 
     @property
     def lsrm_cur_pos(self):
         return self._lsrm_cur_pos
-    
+
     @lsrm_cur_pos.setter
     def lsrm_cur_pos(self, value):
-        self._lsrm_cur_pos = round(general_functions.value_in_range(value, self.OFFSET_BOT_LIMIT, self.OFFSET_TOP_LIMIT), 3)
-    
+        self._lsrm_cur_pos = round(general_functions.value_in_range(
+            value, self.OFFSET_BOT_LIMIT, self.OFFSET_TOP_LIMIT), 3)
+
     @property
     def lsrm_upper(self):
         return self._lsrm_upper
-    
+
     @lsrm_upper.setter
     def lsrm_upper(self, value):
-        self._lsrm_upper = round(general_functions.value_in_range(value, self.OFFSET_BOT_LIMIT, self.OFFSET_TOP_LIMIT), 3)
+        self._lsrm_upper = round(general_functions.value_in_range(
+            value, self.OFFSET_BOT_LIMIT, self.OFFSET_TOP_LIMIT), 3)
 
     @property
     def lsrm_lower(self):
         return self._lsrm_lower
-    
+
     @lsrm_lower.setter
     def lsrm_lower(self, value):
-        self._lsrm_lower = round(general_functions.value_in_range(value, self.OFFSET_BOT_LIMIT, self.OFFSET_TOP_LIMIT), 3)
+        self._lsrm_lower = round(general_functions.value_in_range(
+            value, self.OFFSET_BOT_LIMIT, self.OFFSET_TOP_LIMIT), 3)
 
     @property
     def lsrm_framerate(self):
         return self._lsrm_framerate
-    
+
     @lsrm_framerate.setter
     def lsrm_framerate(self, value):
-        self._lsrm_framerate = int(general_functions.value_in_range(value, self.FRAMERATE_BOT_LIMIT, self.FRAMERATE_TOP_LIMIT))
+        self._lsrm_framerate = int(general_functions.value_in_range(
+            value, self.FRAMERATE_BOT_LIMIT, self.FRAMERATE_TOP_LIMIT))
+        self.lsrm_ili = 1.0/float(self.get_lsrm_sample_rate())
 
     @property
     def lsrm_cam_delay(self):
         return self._lsrm_cam_delay
-    
+
     @lsrm_cam_delay.setter
     def lsrm_cam_delay(self, value):
-        self._lsrm_cam_delay = round(general_functions.value_in_range(value, self.DELAY_BOT_LIMIT, self.DELAY_TOP_LIMIT), 3)
+        self._lsrm_cam_delay = round(general_functions.value_in_range(
+            value, self.DELAY_BOT_LIMIT, self.DELAY_TOP_LIMIT), 3)
 
     @property
     def lsrm_laser_delay(self):
         return self._lsrm_laser_delay
-    
+
     @lsrm_laser_delay.setter
     def lsrm_laser_delay(self, value):
-        self._lsrm_laser_delay = round(general_functions.value_in_range(value, self.DELAY_BOT_LIMIT, self.DELAY_TOP_LIMIT), 3)
+        self._lsrm_laser_delay = round(general_functions.value_in_range(
+            value, self.DELAY_BOT_LIMIT, self.DELAY_TOP_LIMIT), 3)
 
     @property
     def lsrm_num_lines(self):
         return self._lsrm_num_lines
-    
+
     @lsrm_num_lines.setter
     def lsrm_num_lines(self, value):
-        self._lsrm_num_lines = int(general_functions.value_in_range(value, self.NUM_LINES_BOT_LIMIT, self.NUM_LINES_TOP_LIMIT))
+        self._lsrm_num_lines = int(general_functions.value_in_range(
+            value, self.NUM_LINES_BOT_LIMIT, self.NUM_LINES_TOP_LIMIT))
 
     def write_to_config(self):
         user_config.write_class(self)

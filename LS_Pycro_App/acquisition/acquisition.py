@@ -32,13 +32,13 @@ import threading
 import os
 from abc import ABC, abstractmethod
 from acquisition.acquisition_sequences import TimeSampAcquisition, SampTimeAcquisition, PositionTimeAcquisition
-from hardware import stage, camera, plc
+from hardware import Stage, Camera, Plc
 from models.acquisition.acq_settings import AcqSettings
 from models.acquisition.adv_settings import AcqOrder
 from models.acquisition.acq_directory import AcqDirectory
 from utils import exceptions, user_config
 from utils.pycro import core, studio
-from views.shared import AbortDialog, AcqDialog
+from views.py import AbortDialog, AcqDialog
 
 
 class Acquisition(threading.Thread, ABC):
@@ -135,7 +135,7 @@ class Acquisition(threading.Thread, ABC):
         """
         stage_speed = self._acq_settings.adv_settings.z_stack_stage_speed
         step_size = self._acq_settings.fish_list[0].region_list[0].z_stack_step_size
-        plc.set_plc_for_z_stack(step_size, stage_speed)
+        Plc.set_plc_for_z_stack(step_size, stage_speed)
 
     def _write_acquisition_notes(self, acq_directory: AcqDirectory):
         """
@@ -207,6 +207,6 @@ class Acquisition(threading.Thread, ABC):
         except:
             pass
         core.clear_circular_buffer()
-        core.set_exposure(camera.DEFAULT_EXPOSURE)
-        camera.set_burst_mode()
-        stage.reset_joystick()
+        core.set_exposure(Camera.DEFAULT_EXPOSURE)
+        Camera.set_burst_mode()
+        Stage.reset_joystick()

@@ -20,10 +20,10 @@ added to this, should make a class to hold these.
 from hardware.exceptions_handle import handle_exception
 from hardware.camera import Camera
 from utils import constants, general_functions
-from utils.pycro import studio, core
+from utils.pycro import core, studio
 
 
-class Hamamatsu(Camera):
+class Camera(Camera):
     #Can't seem to figure out what the max or min is for PCO. Isn't clear in documentation.
     MAX_EXPOSURE = 2000
     MIN_EXPOSURE = .010
@@ -46,6 +46,7 @@ class Hamamatsu(Camera):
     _SYNC_READOUT = "SYNCREADOUT"
     READOUT_PER_ROW_S = 9.74436*10**-6
     NUM_LINES_DELAY = 9
+    LSRM_MAX_FRAMERATE = 49
 
     @classmethod
     @handle_exception
@@ -61,7 +62,8 @@ class Hamamatsu(Camera):
             exposure time in ms. read the Hamamatsu documentation for what exposure
             times are allowed.
         """
-        cls.stop_live_acquisition()
+        core.stop_sequence_acquisition()
+        studio.live().set_live_mode_on(False)
         cls.set_property(cls._SENSOR_MODE_PROP, cls._AREA_SENSOR_MODE)
         cls.set_property(cls._TRIGGER_POLARITY_PROP, cls._NEGATIVE_POLARITY)
         cls.set_property(cls._TRIGGER_SOURCE_PROP, cls._INTERNAL_SOURCE)

@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from hardware import plc
+from hardware import Plc
 from hardware.exceptions_handle import handle_exception
 from utils import constants
 from utils.abc_attributes_wrapper import abstractattributes
@@ -8,11 +8,44 @@ from utils.pycro import core
 
 @abstractattributes
 class Stage():
-    #"abstract attributes" Interpreter will throw an error if the following aren't defined.
+    """
+    You might be wondering, "Jonah, why is this a class if there isn't an __init__() method?"
+    The answer is this was originally a module in the old versions of the light sheet code. When
+    I decided to combine the two light sheet programs into one, I wanted to accomplish two things:
+    
+    1. Abstract the shared code 
+
+    2. Make an interface that's easy to inherit
+    
+    Since the hardware of the two microscopes is almost identical, I was able
+    to abstract away almost everything, the only differences being the "abstract attributes" below.
+    As for the interface part, if this were a module, changing the variables at the module level
+    would be 
+
+    Now, Python doesn't inherently have abstract attributes (you would need to set abstract properties, 
+    which I think would be more confusing and ugly), so I decided to write a class wrapper to do so! This
+    wrapper makes it so if this class is inherited and the declared attributes below are not defined at runtime,
+    the program will not run (control+click on the @abstractattributes line above to see this implementation). 
+    If I were to have kept this as a module, there would be no way to enforce the definition of these attributes, 
+    meaning the program would run until it attempts to access one of these attributes and then crash.
+
+    Admittedly, the program crashing at attribute-access would probably suffice, though I shudder at the 
+    possibility of an attribute being declared but not defined that is accessed during an important experiment
+    that causes the acquisition to fail. Thus, here we are.
+
+    Now, that explains the class part, but why is there no __init__() method? Short answer: These hardware classes 
+    are meant to be used as modules. __init__() is unecessary because these classes don't change state throughout
+    runtime and each class represents exactly one hardware device, so it doesn't really make sense to have
+    multiple classes representing the same hardware device UNLESS there was some reason to have two different
+    sets of properties for the same device, which there currently isn't! It's worth noting there's no reason 
+    any of these classes COULDN'T be instatiated. However, there is also no reason to, and I believe not 
+    instantiating them more correctly reflects their utility as hardware modules.
+    """
+    #"abstract attributes" Interpreter will throw an error if the following aren't declared.
     STAGE_SERIAL_LABEL : str
-    X_AXIS_LABEL : str
-    Y_AXIS_LABEL : str
-    Z_AXIS_LABEL : str
+    _X_AXIS_LABEL : str
+    _Y_AXIS_LABEL : str
+    _Z_AXIS_LABEL : str
     _INITIALIZE_SCAN_AXES : str
     _START_SCAN_COMMAND  : str
     _SCANR_COMMAND_START: str
@@ -40,7 +73,7 @@ class Stage():
         """
         Makes core wait for XY stage to become unbusy
         """
-        #core.wait_for_device(cls.XY_STAGE_NAME)
+        core.wait_for_device(cls.XY_STAGE_NAME)
         cls._logger.info("Waiting for xy stage")
 
     @classmethod
@@ -48,7 +81,7 @@ class Stage():
         """
         Makes core wait for Z stage to become unbusy
         """
-        #core.wait_for_device(cls.Z_STAGE_NAME)
+        core.wait_for_device(cls.Z_STAGE_NAME)
         cls._logger.info("Waiting for z stage")
 
     @classmethod
@@ -71,7 +104,7 @@ class Stage():
         """
         cls.wait_for_xy_stage()
         #Since X and Z stages are swapped, must set Z-axis speed for X-axis speed change.
-        cls.send_serial_command_to_stage(f"SPEED {cls.X_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
+        cls.send_serial_command_to_stage(f"SPEED {cls._X_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
         cls._logger.info(f"x stage speed set to {speed} um/s")
 
     @classmethod
@@ -86,7 +119,7 @@ class Stage():
             stage speed in um/s
         """
         cls.wait_for_xy_stage()
-        cls.send_serial_command_to_stage(f"SPEED {cls.Y_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
+        cls.send_serial_command_to_stage(f"SPEED {cls._Y_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
         cls._logger.info(f"y stage speed set to {speed} um/s")
 
     @classmethod
@@ -101,7 +134,7 @@ class Stage():
             stage speed in um/s
         """
         cls.wait_for_z_stage()
-        cls.send_serial_command_to_stage(f"SPEED {cls.Z_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
+        cls.send_serial_command_to_stage(f"SPEED {cls._Z_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
         cls._logger.info(f"z stage speed set to {speed} um/s")
 
     @classmethod
@@ -189,7 +222,7 @@ class Stage():
         cls.wait_for_xy_stage()
         cls.wait_for_z_stage()
 
-        corrected_speed = plc.get_true_z_stack_stage_speed(stage_speed)
+        corrected_speed = Plc.get_true_z_stack_stage_speed(stage_speed)
         cls.set_z_stage_speed(corrected_speed)
 
         cls.send_serial_command_to_stage(cls._START_SCAN_COMMAND)
@@ -231,7 +264,7 @@ class Stage():
         cls.wait_for_xy_stage()
         cls.set_x_stage_speed(cls._DEFAULT_STAGE_SPEED_UM_PER_S)
         #ASI MOVE (M) command takes position in tenths of microns, so multiply by 10       
-        cls.send_serial_command_to_stage(f"M {cls.X_AXIS_LABEL}={int(x_pos)*constants.TO_TENTHS}")
+        cls.send_serial_command_to_stage(f"M {cls._X_AXIS_LABEL}={int(x_pos)*constants.TO_TENTHS}")
         cls._logger.info(f"Stage x position set to {x_pos} um")
 
     @classmethod
@@ -242,7 +275,7 @@ class Stage():
         """
         cls.wait_for_xy_stage()
         cls.set_y_stage_speed(cls._DEFAULT_STAGE_SPEED_UM_PER_S)      
-        cls.send_serial_command_to_stage(f"M {cls.Y_AXIS_LABEL}={int(y_pos)*constants.TO_TENTHS}")
+        cls.send_serial_command_to_stage(f"M {cls._Y_AXIS_LABEL}={int(y_pos)*constants.TO_TENTHS}")
         cls._logger.info(f"Stage y position set to {y_pos} um")
 
     @classmethod

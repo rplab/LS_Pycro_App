@@ -47,7 +47,7 @@ import nidaqmx
 import numpy as np
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
 from hardware.exceptions_handle import handle_exception
-from hardware import galvo_settings
+from models import galvo_settings
 from utils import constants
 
 
@@ -78,15 +78,15 @@ class Galvo(object):
         """
         cls._reset_tasks()
         # For DSLM, want the daq to generate samples continuously since we want the mirrors to scan continuously.
-        cls._scan_output.timing.cfg_samp_clk_timing(galvo_settings.DSLM_SAMPLE_RATE, 
-                                                sample_mode=nidaqmx.constants.AcquisitionType.CONTINUOUS,
-                                                samps_per_chan=galvo_settings.DSLM_NUM_SAMPLES)
+        cls._scan_output.timing.cfg_samp_clk_timing(galvo_settings.DSLM_SAMPLE_RATE,
+                                                    sample_mode=nidaqmx.constants.AcquisitionType.CONTINUOUS,
+                                                    samps_per_chan=galvo_settings.DSLM_NUM_SAMPLES)
 
         # Adds pulse output channel to _cam_output task. The pulse output is to relay the digital signals
         # from the PLC to the camera.
-        cls._cam_output.co_channels.add_co_pulse_chan_time(galvo_settings.CAM_CHANNEL, 
-                                                    low_time=galvo_settings.PULSE_TIME_S, 
-                                                    high_time=galvo_settings.PULSE_TIME_S)
+        cls._cam_output.co_channels.add_co_pulse_chan_time(galvo_settings.CAM_CHANNEL,
+                                                           low_time=galvo_settings.PULSE_TIME_S,
+                                                           high_time=galvo_settings.PULSE_TIME_S)
         cls._cam_output.timing.cfg_implicit_timing(samps_per_chan=1)
         cls._cam_output.triggers.start_trigger.cfg_dig_edge_start_trig(galvo_settings.PLC_INPUT_CHANNEL)
         cls._cam_output.triggers.start_trigger.retriggerable = True
@@ -110,9 +110,9 @@ class Galvo(object):
         scan_width/2 (so total scan width is scan_width). Then, appends reverse of created linspace to itself so that
         a triangle sample is made. 
         """
-        scan = np.linspace(-1*galvo_settings.dslm_scan_width/2, galvo_settings.dslm_scan_width/2, int(galvo_settings.DSLM_NUM_SAMPLES/2))
-        scan += galvo_settings.dslm_offset
-        scan = np.concatenate((scan, scan[::-1]), 0)
+        scan = np.linspace(-1*galvo_settings.dslm_scan_width/2, galvo_settings.dslm_scan_width /
+                           2, int(galvo_settings.DSLM_NUM_SAMPLES/2))
+        scan = np.concatenate((scan, scan[::-1]), 0) + galvo_settings.dslm_offset
         return scan
 
     @classmethod
@@ -126,7 +126,7 @@ class Galvo(object):
         # Same as continuous_scan but without the scanning or pulse channel.
         # Used to align laser.
         cls._scan_output.timing.cfg_samp_clk_timing(galvo_settings.DSLM_SAMPLE_RATE, sample_mode=nidaqmx.constants.AcquisitionType.CONTINUOUS,
-                                                samps_per_chan=galvo_settings.DSLM_NUM_SAMPLES)
+                                                    samps_per_chan=galvo_settings.DSLM_NUM_SAMPLES)
 
         scan = np.zeros(galvo_settings.DSLM_NUM_SAMPLES) + galvo_settings.dslm_offset
         focus = galvo_settings.focus*np.ones(galvo_settings.DSLM_NUM_SAMPLES)
@@ -163,19 +163,9 @@ class Galvo(object):
         """
         cls._reset_tasks()
 
-        # Calculates sampling rate and internal line interval (ili) from framerate. Sampling rate uses framerate+1
-        # to ensure no digital pulses from the PLC are missed by the camera. If the camera receives a pulse while it
-        # is currently taking an image, it will skip it, halving the framerate.
-        lsrm_sample_rate = galvo_settings.LSRM_NUM_SAMPLES * (galvo_settings.lsrm_framerate + 1)
-
-        # with lsrm_num_samples = 2048 (the number pixel rows or "lines" on the Hamamatsu camera), lsrm_sample_rate is
-        # really the number of lines covered per second, and so 1/lsrm_sample_rate is the amount of time per line,
-        # aka the internal line interval.
-        galvo_settings.lsrm_ili = 1.0/float(lsrm_sample_rate)
-
         # Configures clock timing. Note that the AcquisitionType here is FINITE instead of CONTINUOUS in DSLM.
-        cls._scan_output.timing.cfg_samp_clk_timing(lsrm_sample_rate, sample_mode=nidaqmx.constants.AcquisitionType.FINITE,
-                                                samps_per_chan=galvo_settings.LSRM_NUM_SAMPLES)
+        cls._scan_output.timing.cfg_samp_clk_timing(galvo_settings.get_lsrm_sample_rate(), sample_mode=nidaqmx.constants.AcquisitionType.FINITE,
+                                                    samps_per_chan=galvo_settings.LSRM_NUM_SAMPLES)
 
         # Creates start trigger and makes task retriggerable so that PLC pulses retrigger it. Also adds delay which acts
         # as the laser delay.
@@ -188,7 +178,7 @@ class Galvo(object):
         # just sets up the camera channel to output a pulse whenever a pulse is received at the _RETRIG_CHAN.
         # God this API is awful.
         cls._cam_output.co_channels.add_co_pulse_chan_time(galvo_settings.CAM_CHANNEL, initial_delay=galvo_settings.lsrm_cam_delay*constants.MS_TO_S,
-                                                    low_time=galvo_settings.PULSE_TIME_S, high_time=galvo_settings.PULSE_TIME_S).co_enable_initial_delay_on_retrigger = True
+                                                           low_time=galvo_settings.PULSE_TIME_S, high_time=galvo_settings.PULSE_TIME_S).co_enable_initial_delay_on_retrigger = True
         cls._cam_output.timing.cfg_implicit_timing(samps_per_chan=1)
         cls._cam_output.triggers.start_trigger.cfg_dig_edge_start_trig(galvo_settings.PLC_INPUT_CHANNEL)
         cls._cam_output.triggers.start_trigger.retriggerable = True
@@ -210,11 +200,8 @@ class Galvo(object):
         """
         cls._reset_tasks()
 
-        # Same as continuous_scan_not_scanning but with lightsheet_readout_current_posisition
-        # as offset to y-galvo mirror instead of continuous_scan_offset. Used to set scan bounds
-        # for lsrm.
         cls._scan_output.timing.cfg_samp_clk_timing(galvo_settings.DSLM_SAMPLE_RATE, sample_mode=nidaqmx.constants.AcquisitionType.CONTINUOUS,
-                                                samps_per_chan=galvo_settings.DSLM_NUM_SAMPLES)
+                                                    samps_per_chan=galvo_settings.DSLM_NUM_SAMPLES)
 
         scan = np.zeros(galvo_settings.DSLM_NUM_SAMPLES) + galvo_settings.lsrm_cur_pos
         focus = galvo_settings.focus*np.ones(galvo_settings.DSLM_NUM_SAMPLES)

@@ -1,10 +1,10 @@
 from hardware.stage import Stage
 
-class WilStage(Stage):
+class Stage(Stage):
     STAGE_SERIAL_LABEL = "ASI-XYStage"
-    X_AXIS_LABEL = "Z"
-    Y_AXIS_LABEL = "Y"
-    Z_AXIS_LABEL = "X"
+    _X_AXIS_LABEL = "Z"
+    _Y_AXIS_LABEL = "Y"
+    _Z_AXIS_LABEL = "X"
     _INITIALIZE_SCAN_AXES = "SCAN X=1 Y=0 Z=0"
     _START_SCAN_COMMAND  = "SCAN"
     _SCANR_COMMAND_START = "SCANR"
