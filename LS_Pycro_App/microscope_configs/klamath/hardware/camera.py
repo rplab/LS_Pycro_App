@@ -62,8 +62,7 @@ class Camera(Camera):
             exposure time in ms. read the Hamamatsu documentation for what exposure
             times are allowed.
         """
-        core.stop_sequence_acquisition()
-        studio.live().set_live_mode_on(False)
+        cls.stop_live_acquisition()
         cls.set_property(cls._SENSOR_MODE_PROP, cls._AREA_SENSOR_MODE)
         cls.set_property(cls._TRIGGER_POLARITY_PROP, cls._NEGATIVE_POLARITY)
         cls.set_property(cls._TRIGGER_SOURCE_PROP, cls._INTERNAL_SOURCE)
