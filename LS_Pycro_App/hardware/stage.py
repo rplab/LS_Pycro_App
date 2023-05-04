@@ -49,6 +49,7 @@ class Stage():
     _INITIALIZE_SCAN_AXES : str
     _START_SCAN_COMMAND  : str
     _SCANR_COMMAND_START: str
+    _SCANV_COMMAND : str
     _JOYSTICK_AXIS_RESET_COMMAND : str
     _JOYSTICK_Z_SPEED_COMMAND : str
     
@@ -90,6 +91,7 @@ class Stage():
         Makes core wait for Z stage to become unbusy
         """
         core.set_property(cls.STAGE_SERIAL_LABEL, cls._SERIAL, command)
+        cls._logger.info(f"Serial command {command} sent to stage")
 
     @classmethod
     @handle_exception
@@ -172,12 +174,13 @@ class Stage():
         cls._send_scan_setup_commands(start_z, end_z)
         cls._logger.info("scan parameters have been set")
 
-    #scan_setup helpers
+    #initialize_scan helpers
     @classmethod
     def _send_scan_setup_commands(cls, start_z, end_z):
         scan_r_command = cls._get_scan_r_command(start_z, end_z)
         cls.send_serial_command_to_stage(cls._INITIALIZE_SCAN_AXES)
         cls.send_serial_command_to_stage(scan_r_command)
+        cls.send_serial_command_to_stage(cls._SCAN_V_COMMAND)
 
     @classmethod
     def _get_scan_r_command(cls, start_z, end_z):
