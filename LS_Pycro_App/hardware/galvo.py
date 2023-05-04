@@ -103,6 +103,8 @@ class Galvo(object):
         cls._scan_output.start()
         cls._cam_output.start()
 
+        cls._logger.info(f"Galvo set to dslm mode.")
+
     @classmethod
     def create_scan_sample(cls):
         """
@@ -134,6 +136,8 @@ class Galvo(object):
         writer.write_many_sample(np.array([focus, scan]))
 
         cls._scan_output.start()
+
+        cls._logger.info(f"Galvo set to dslm alignment mode.")
 
     @classmethod
     @handle_exception
@@ -191,6 +195,8 @@ class Galvo(object):
         cls._scan_output.start()
         cls._cam_output.start()
 
+        cls._logger.info(f"Galvo set to lsrm mode.")
+
     @classmethod
     @handle_exception
     def set_lsrm_alignment_mode(cls):
@@ -210,6 +216,8 @@ class Galvo(object):
         writer.write_many_sample(np.array([focus, scan]))
 
         cls._scan_output.start()
+
+        cls._logger.info(f"Galvo set to lsrm alignment mode.")
 
     @classmethod
     def _reset_tasks(cls):
