@@ -101,11 +101,11 @@ class Region():
     z_stack_step_size: int = 1
     z_stack_channel_list: list[str] = []
     snap_enabled: bool = False
-    snap_exposure: float = 20
+    snap_exposure: float = 20.
     snap_channel_list: list[str] = []
     video_enabled: bool = False
     video_num_frames: int = 100
-    video_exposure: float = 20
+    video_exposure: float = 20.
     video_channel_list: list[str] = []
 
     def __init__(self):
