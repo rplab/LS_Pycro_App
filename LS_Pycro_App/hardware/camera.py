@@ -35,8 +35,7 @@ class Camera(ABC):
     @classmethod
     @handle_exception
     def wait_for_camera(cls):
-        #core.wait_for_device(cls.CAM_NAME)
-        pass
+        core.wait_for_device(cls.CAM_NAME)
 
     @classmethod
     @handle_exception
