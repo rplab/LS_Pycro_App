@@ -195,7 +195,6 @@ class Stage():
             end = end_z + buffer
         else:
             end = end_z - buffer
-
         return end
 
     @classmethod
