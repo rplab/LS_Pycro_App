@@ -58,7 +58,7 @@ class Camera(ABC):
         # but this doesn't work with lsrm for some reason.
         core.start_sequence_acquisition(1, 0, True)
         #waits until image is actually in buffer. 
-        while not core.get_remaining_image_count():
+        while not core.get_remaining_image_count() > 0:
             core.sleep(cls._WAIT_FOR_IMAGE_MS)
 
         cls._logger.info(f"Snapped image")
