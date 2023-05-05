@@ -313,7 +313,6 @@ class AcqController(object):
     def _refresh_adv_z_stack_widgets(self):
         self._adv_settings_dialog.z_stack_spectral_check_box.setChecked(self._adv_settings.spectral_z_stack_enabled)
         self._adv_settings_dialog.stage_speed_combo_box.setCurrentText(str(self._adv_settings.z_stack_stage_speed))
-        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(self._adv_settings.edge_trigger_enabled)
         self._adv_settings_dialog.z_stack_exposure_line_edit.setText(str(self._adv_settings.z_stack_exposure))
 
     def _refresh_adv_video_widgets(self):
