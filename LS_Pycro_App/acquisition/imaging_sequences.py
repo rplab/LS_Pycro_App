@@ -209,7 +209,7 @@ class SnapAcquisition(ImageAcquisition, ABC):
         snaps a single image and puts it in datastore
         """
         Camera.snap_image()
-        image = self._pop_image_with_metadata(frame_num)
+        image = self._pop_image_with_metadata(frame_num, channel_num)
         self._datastore.put_image(image)
 
 
