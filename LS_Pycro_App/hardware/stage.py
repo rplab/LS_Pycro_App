@@ -180,7 +180,7 @@ class Stage():
         scan_r_command = cls._get_scan_r_command(start_z, end_z)
         cls.send_serial_command_to_stage(cls._INITIALIZE_SCAN_AXES)
         cls.send_serial_command_to_stage(scan_r_command)
-        cls.send_serial_command_to_stage(cls._SCAN_V_COMMAND)
+        cls.send_serial_command_to_stage(cls._SCANV_COMMAND)
 
     @classmethod
     def _get_scan_r_command(cls, start_z, end_z):

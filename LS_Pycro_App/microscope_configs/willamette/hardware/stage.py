@@ -5,7 +5,7 @@ class Stage(Stage):
     _X_AXIS_LABEL = "Z"
     _Y_AXIS_LABEL = "Y"
     _Z_AXIS_LABEL = "X"
-    _INITIALIZE_SCAN_AXES = "SCAN X=1 Y=0 Z=0"
+    _INITIALIZE_SCAN_AXES = "SCAN X=1 Y=0 Z=0 F=0"
     _START_SCAN_COMMAND  = "SCAN"
     _SCANR_COMMAND_START = "SCANR"
     _SCANV_COMMAND = "SCANV Z=0"
