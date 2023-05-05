@@ -1,6 +1,4 @@
 from acquisition.acquisition import Acquisition
-from microscope_configs.willamette.hardware.plc import WilPlc
-from microscope_configs.willamette.hardware.stage import WilStage
 
 class Acquisition(Acquisition):
     def _init_additional_hardware(self):
