@@ -1,4 +1,6 @@
+import ctypes
 import sys
+from PyQt5 import QtGui
 from PyQt5.QtWidgets import QApplication
 from microscope_select.microscope_select import select_microscope
 
@@ -10,5 +12,10 @@ microscope_was_selected = select_microscope()
 if microscope_was_selected:
     from controllers import MainController
     app = QApplication(sys.argv)
+    #app_id needed to override taskbar icon
+    app_id = "LS_Pycro_App"
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
     controller = MainController()
+    app.setWindowIcon(QtGui.QIcon('app_icon.png'))
+    controller._main_window.setWindowIcon(QtGui.QIcon('app_icon.png'))
     app.exec_()
