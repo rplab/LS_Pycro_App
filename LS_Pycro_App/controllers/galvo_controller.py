@@ -201,6 +201,7 @@ class GalvoController(object):
         with contextlib.suppress(exceptions.GeneralHardwareException):
             if self.galvo_dialog.scanning_check_box.isChecked():
                 if self._is_lsrm:
+                    Plc.set_plc_for_continuous_lsrm(galvo_settings.lsrm_framerate)
                     Galvo.set_lsrm_mode()
                 else:
                     Galvo.set_dslm_mode()
@@ -218,7 +219,6 @@ class GalvoController(object):
             self._is_lsrm = True
         else:
             self._is_lsrm = False
-
         self._set_scanning_mode()
         
         if self.galvo_dialog.scanning_check_box.isChecked():
