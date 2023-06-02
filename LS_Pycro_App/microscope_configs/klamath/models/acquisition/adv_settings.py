@@ -21,26 +21,6 @@ class AdvSettings(AdvSettings):
             self.z_stack_exposure = self.z_stack_exposure
 
     @property
-    def spectral_z_stack_enabled(self):
-        return self._spectral_z_stack_enabled
-
-    @spectral_z_stack_enabled.setter
-    def spectral_z_stack_enabled(self, value):
-        self._spectral_z_stack_enabled = value
-        if hasattr(self, "_z_stack_exposure"):
-            self.z_stack_exposure = self.z_stack_exposure
-
-    @property
-    def z_stack_stage_speed(self):
-        return self._z_stack_stage_speed
-
-    @z_stack_stage_speed.setter
-    def z_stack_stage_speed(self, value):
-        self._z_stack_stage_speed = value
-        if hasattr(self, "_z_stack_exposure"):
-            self.z_stack_exposure = self.z_stack_exposure
-
-    @property
     def z_stack_exposure(self):
         return self._z_stack_exposure
 

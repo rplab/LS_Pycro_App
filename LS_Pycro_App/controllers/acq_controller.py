@@ -301,7 +301,7 @@ class AcqController(object):
             self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
 
         memory_gb = self._acq_settings.total_num_images*AcqSettings.image_size_mb*constants.MB_TO_GB
-        self._acq_settings_dialog.memory_line_edit.setText(str(memory_gb))
+        self._acq_settings_dialog.memory_line_edit.setText(str(round(memory_gb, AcqController.NUM_DECIMAL_PLACES)))
 
     def _refresh_adv_settings_dialog(self):
         self._refresh_adv_z_stack_widgets()
@@ -975,6 +975,7 @@ class AcqController(object):
         # The maximum exposure time during a scan
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings.z_stack_stage_speed = float(self._adv_settings_dialog.stage_speed_combo_box.currentText())
+        
 
         self._refresh_dialogs()
 
