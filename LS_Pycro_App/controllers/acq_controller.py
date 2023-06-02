@@ -153,10 +153,6 @@ class AcqController(object):
         self.regions_dialog.snap_exposure_line_edit.setValidator(validator)
         self.regions_dialog.video_exposure_line_edit.setValidator(validator)
         self._adv_settings_dialog.z_stack_exposure_line_edit.setValidator(validator)
-
-        validator = QtGui.QDoubleValidator()
-        validator.setDecimals(AcqController.NUM_DECIMAL_PLACES)
-        self._acq_settings_dialog.memory_line_edit.setValidator(validator)
     
     def _connect_signals(self):
         # Initialize AcquisitionRegionsDialog event handlers. Organized by where they show up in the GUI.
@@ -306,7 +302,7 @@ class AcqController(object):
             self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
 
         memory_gb = self._acq_settings.total_num_images*AcqSettings.image_size_mb*constants.MB_TO_GB
-        self._acq_settings_dialog.memory_line_edit.setText(str(memory_gb))
+        self._acq_settings_dialog.memory_line_edit.setText(str(round(memory_gb, AcqController.NUM_DECIMAL_PLACES)))
 
     def _refresh_adv_settings_dialog(self):
         self._refresh_adv_z_stack_widgets()
