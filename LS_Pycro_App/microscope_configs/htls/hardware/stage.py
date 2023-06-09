@@ -1,9 +1,6 @@
 from hardware.stage import Stage
 
 class Stage(Stage):
-    def is_z_stage_first(current_x_pos, x_destination):
-        return current_x_pos > x_destination
-
     STAGE_SERIAL_LABEL = "TigerCommHub"
     _X_AXIS_LABEL = "X"
     _Y_AXIS_LABEL = "Y"
