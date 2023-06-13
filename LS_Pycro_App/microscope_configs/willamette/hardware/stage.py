@@ -1,8 +1,8 @@
 from hardware.stage import Stage
 
 class Stage(Stage):
-    def is_z_stage_first(current_x_pos, x_destination):
-        return current_x_pos < x_destination
+    def is_z_stage_first(current_x_pos, destination_x_pos):
+        return current_x_pos < destination_x_pos
 
     STAGE_SERIAL_LABEL = "ASI-XYStage"
     _X_AXIS_LABEL = "Z"
