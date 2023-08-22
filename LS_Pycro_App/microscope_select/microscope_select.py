@@ -17,7 +17,7 @@ def get_microscope_from_config():
     if user_config.has_section(CONFIG_SECTION):
         return MicroscopeConfig[user_config.get(CONFIG_SECTION, CONFIG_OPTION)]
     else:
-        return MicroscopeConfig.KLAMATH
+        return MicroscopeConfig.WILLAMETTE
 
 def write_microscope_to_config():
     if not user_config.has_section(CONFIG_SECTION):

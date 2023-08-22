@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+from abc import ABC, abstractmethod
 from hardware import Plc
 from hardware.exceptions_handle import handle_exception
 from utils import constants
@@ -7,7 +8,7 @@ from utils.abc_attributes_wrapper import abstractattributes
 from utils.pycro import core
 
 @abstractattributes
-class Stage():
+class Stage(ABC):
     """
     You might be wondering, "Jonah, why is this a class if there isn't an __init__() method?"
     The answer is this was originally a module in the old versions of the light sheet code. When
@@ -52,6 +53,10 @@ class Stage():
     _SCANV_COMMAND : str
     _JOYSTICK_AXIS_RESET_COMMAND : str
     _JOYSTICK_Z_SPEED_COMMAND : str
+
+    @abstractmethod
+    def is_z_stage_first(current_x_pos, destination_x_pos) -> bool:
+        pass
     
     _logger = logging.getLogger(__name__)
     XY_STAGE_NAME : str = core.get_xy_stage_device()
@@ -67,7 +72,6 @@ class Stage():
     _BASE_Z_STACK_BUFFER : int = 2
     #number of um per um increase in buffer. Found empirically (reluctantly). See _get_z_stack_buffer().
     _UM_PER_UM_BUFFER = 92
-
 
     @classmethod
     def wait_for_xy_stage(cls):
@@ -86,7 +90,7 @@ class Stage():
         cls._logger.info("Waiting for z stage")
 
     @classmethod
-    def send_serial_command_to_stage(cls, command):
+    def send_command(cls, command):
         """
         Makes core wait for Z stage to become unbusy
         """
@@ -106,7 +110,7 @@ class Stage():
         """
         cls.wait_for_xy_stage()
         #Since X and Z stages are swapped, must set Z-axis speed for X-axis speed change.
-        cls.send_serial_command_to_stage(f"SPEED {cls._X_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
+        cls.send_command(f"SPEED {cls._X_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
         cls._logger.info(f"x stage speed set to {speed} um/s")
 
     @classmethod
@@ -121,7 +125,7 @@ class Stage():
             stage speed in um/s
         """
         cls.wait_for_xy_stage()
-        cls.send_serial_command_to_stage(f"SPEED {cls._Y_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
+        cls.send_command(f"SPEED {cls._Y_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
         cls._logger.info(f"y stage speed set to {speed} um/s")
 
     @classmethod
@@ -136,7 +140,7 @@ class Stage():
             stage speed in um/s
         """
         cls.wait_for_z_stage()
-        cls.send_serial_command_to_stage(f"SPEED {cls._Z_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
+        cls.send_command(f"SPEED {cls._Z_AXIS_LABEL}={round(speed*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)}")
         cls._logger.info(f"z stage speed set to {speed} um/s")
 
     @classmethod
@@ -177,19 +181,18 @@ class Stage():
     #initialize_scan helpers
     @classmethod
     def _send_scan_setup_commands(cls, start_z, end_z):
-        scan_r_command = cls._get_scan_r_command(start_z, end_z)
-        cls.send_serial_command_to_stage(cls._INITIALIZE_SCAN_AXES)
-        cls.send_serial_command_to_stage(scan_r_command)
-        cls.send_serial_command_to_stage(cls._SCANV_COMMAND)
+        cls.send_command(cls._INITIALIZE_SCAN_AXES)
+        cls.send_command(cls._get_scan_r(start_z, end_z))
+        cls.send_command(cls._SCANV_COMMAND)
 
     @classmethod
-    def _get_scan_r_command(cls, start_z, end_z):
+    def _get_scan_r(cls, start_z, end_z):
         start_z_mm = round(start_z*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)
-        end_z_mm = round(cls._get_end_z_position(start_z, end_z)*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)
+        end_z_mm = round(cls._get_end_z(start_z, end_z)*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)
         return f"{cls._SCANR_COMMAND_START} X={start_z_mm} Y={end_z_mm}"
 
     @classmethod
-    def _get_end_z_position(cls, start_z, end_z):
+    def _get_end_z(cls, start_z, end_z):
         buffer = cls._get_z_stack_buffer(start_z, end_z)
         if start_z < end_z:
             end = end_z + buffer
@@ -227,7 +230,7 @@ class Stage():
         corrected_speed = Plc.get_true_z_stack_stage_speed(stage_speed)
         cls.set_z_stage_speed(corrected_speed)
 
-        cls.send_serial_command_to_stage(cls._START_SCAN_COMMAND)
+        cls.send_command(cls._START_SCAN_COMMAND)
         cls._logger.info("Scan started")
         return corrected_speed
                 
@@ -244,7 +247,7 @@ class Stage():
         #This section is to ensure capillaries don't hit the objective. These conditions
         #should be changed to match the geometry of the holder.
         current_x_position = cls.get_x_position()
-        if current_x_position > x_pos:
+        if cls.is_z_stage_first(current_x_position, x_pos):
             cls.set_z_position(z_pos)
             cls.wait_for_z_stage()
             cls.set_xy_position(x_pos, y_pos)
@@ -266,7 +269,7 @@ class Stage():
         cls.wait_for_xy_stage()
         cls.set_x_stage_speed(cls._DEFAULT_STAGE_SPEED_UM_PER_S)
         #ASI MOVE (M) command takes position in tenths of microns, so multiply by 10       
-        cls.send_serial_command_to_stage(f"M {cls._X_AXIS_LABEL}={int(x_pos)*constants.TO_TENTHS}")
+        cls.send_command(f"M {cls._X_AXIS_LABEL}={int(x_pos)*constants.TO_TENTHS}")
         cls._logger.info(f"Stage x position set to {x_pos} um")
 
     @classmethod
@@ -277,7 +280,7 @@ class Stage():
         """
         cls.wait_for_xy_stage()
         cls.set_y_stage_speed(cls._DEFAULT_STAGE_SPEED_UM_PER_S)      
-        cls.send_serial_command_to_stage(f"M {cls._Y_AXIS_LABEL}={int(y_pos)*constants.TO_TENTHS}")
+        cls.send_command(f"M {cls._Y_AXIS_LABEL}={int(y_pos)*constants.TO_TENTHS}")
         cls._logger.info(f"Stage y position set to {y_pos} um")
 
     @classmethod
@@ -357,8 +360,8 @@ class Stage():
         """
         cls.wait_for_xy_stage()
         cls.wait_for_z_stage()
-        cls.send_serial_command_to_stage(cls._JOYSTICK_ENABLE)
-        cls.send_serial_command_to_stage(cls._JOYSTICK_AXIS_RESET_COMMAND)
-        cls.send_serial_command_to_stage(cls._JOYSTICK_Z_SPEED)
+        cls.send_command(cls._JOYSTICK_ENABLE)
+        cls.send_command(cls._JOYSTICK_AXIS_RESET_COMMAND)
+        cls.send_command(cls._JOYSTICK_Z_SPEED)
         cls._logger.info("Joystick has been reset")
         

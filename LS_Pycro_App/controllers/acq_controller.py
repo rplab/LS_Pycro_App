@@ -91,24 +91,25 @@ class AcqController(object):
     def _set_widget_models(self):
          # initialize item (list) models
         self._region_table_model = QtGui.QStandardItemModel()
-        self.regions_dialog.region_table_view.setModel(self._region_table_model)
         self._z_stack_available_model = QtGui.QStandardItemModel()
-        self.regions_dialog.z_stack_available_list_view.setModel(self._z_stack_available_model)
         self._z_stack_used_model = QtGui.QStandardItemModel()
-        self.regions_dialog.z_stack_used_list_view.setModel(self._z_stack_used_model)
         self._snap_available_model = QtGui.QStandardItemModel()
-        self.regions_dialog.snap_available_list_view.setModel(self._snap_available_model)
         self._snap_used_model = QtGui.QStandardItemModel()
-        self.regions_dialog.snap_used_list_view.setModel(self._snap_used_model)
         self._video_available_model = QtGui.QStandardItemModel()
-        self.regions_dialog.video_available_list_view.setModel(self._video_available_model)
         self._video_used_model = QtGui.QStandardItemModel()
-        self.regions_dialog.video_used_list_view.setModel(self._video_used_model)
         self._channel_order_model = QtGui.QStandardItemModel()
-        self._acq_settings_dialog.channel_order_list_view.setModel(self._channel_order_model)
         self._speed_list_model = QtGui.QStandardItemModel()
-        self._adv_settings_dialog.stage_speed_combo_box.setModel(self._speed_list_model)
         self._acq_order_model = QtGui.QStandardItemModel()
+
+        self.regions_dialog.region_table_view.setModel(self._region_table_model)
+        self.regions_dialog.z_stack_available_list_view.setModel(self._z_stack_available_model)
+        self.regions_dialog.z_stack_used_list_view.setModel(self._z_stack_used_model)
+        self.regions_dialog.snap_available_list_view.setModel(self._snap_available_model)
+        self.regions_dialog.snap_used_list_view.setModel(self._snap_used_model)
+        self.regions_dialog.video_available_list_view.setModel(self._video_available_model)
+        self.regions_dialog.video_used_list_view.setModel(self._video_used_model)
+        self._acq_settings_dialog.channel_order_list_view.setModel(self._channel_order_model)
+        self._adv_settings_dialog.stage_speed_combo_box.setModel(self._speed_list_model)
         self._adv_settings_dialog.acq_order_combo_box.setModel(self._acq_order_model)
 
         # uses core channel list to initialize list model values
@@ -301,7 +302,7 @@ class AcqController(object):
             self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
 
         memory_gb = self._acq_settings.total_num_images*AcqSettings.image_size_mb*constants.MB_TO_GB
-        self._acq_settings_dialog.memory_line_edit.setText(str(memory_gb))
+        self._acq_settings_dialog.memory_line_edit.setText(str(round(memory_gb, AcqController.NUM_DECIMAL_PLACES)))
 
     def _refresh_adv_settings_dialog(self):
         self._refresh_adv_z_stack_widgets()
@@ -544,10 +545,10 @@ class AcqController(object):
             # the class attributes for Region. The class attributes are used as default values
             # for new class instances, so updating them updates the default values.
             self._region.x_pos = x_pos
-            Region.x_pos = x_pos
             self._region.y_pos = y_pos
-            Region.y_pos = y_pos
             self._region.z_pos = z_pos
+            Region.x_pos = x_pos
+            Region.y_pos = y_pos
             Region.z_pos = z_pos
 
             self._acq_settings.update_fish_list(self._fish_num, self._fish)
@@ -975,6 +976,7 @@ class AcqController(object):
         # The maximum exposure time during a scan
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings.z_stack_stage_speed = float(self._adv_settings_dialog.stage_speed_combo_box.currentText())
+        
 
         self._refresh_dialogs()
 
