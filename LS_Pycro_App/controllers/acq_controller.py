@@ -9,6 +9,7 @@ from hardware import Stage, Camera
 from models.acquisition.acq_settings import Region, Fish, AcqSettings
 from models.acquisition.adv_settings import AcqOrder
 from utils import constants, exceptions
+from utils.pycro import core
 from views import AdvSettingsDialog
 from views.py import AcqRegionsDialog, AcqOrderDialog, AcqSettingsDialog, BrowseDialog
 
@@ -82,11 +83,15 @@ class AcqController(object):
         self._fish_copy = deepcopy(self._fish)
         self._region_copy = deepcopy(self._region)
 
+        self._set_chan_group()
         self._set_widget_models()
         self._set_validators()
         self._connect_signals()
         self._set_additional_widget_settings()
         self._refresh_dialogs()
+
+    def _set_chan_group(self):
+        core.set_channel_group(self._acq_settings.channel_group_name)
     
     def _set_widget_models(self):
          # initialize item (list) models
@@ -742,81 +747,82 @@ class AcqController(object):
 
         self._refresh_dialogs()
 
-    def _x_line_edit_event(self):
+    def _x_line_edit_event(self, text):
         # Sets x_pos in region
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            x_pos = int(self.regions_dialog.x_line_edit.text())
+            x_pos = int(text)
             self._region.x_pos = x_pos
             Region.x_pos = x_pos
 
             self._refresh_dialogs()
 
-    def _y_line_edit_event(self):
+    def _y_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            y_pos = int(self.regions_dialog.y_line_edit.text())
+            y_pos = int(text)
             self._region.y_pos = y_pos
             Region.y_pos = y_pos
 
             self._refresh_dialogs()
 
-    def _z_line_edit_event(self):
+    def _z_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            z_pos = int(self.regions_dialog.z_line_edit.text())
+            z_pos = int(text)
             self._region.z_pos = z_pos
             Region.z_pos = z_pos
 
             self._refresh_dialogs()
 
-    def _fish_type_line_edit_event(self):
+    def _fish_type_line_edit_event(self, text):
         # Changes fish type text for current fish
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._fish.fish_type = self.regions_dialog.fish_type_line_edit.text()
-        Fish.fish_type = self.regions_dialog.fish_type_line_edit.text()
+        self._fish.fish_type = text
+        Fish.fish_type = text
 
-    def _age_line_edit_event(self):
+    def _age_line_edit_event(self, text):
         # Changes fish age text for current fish
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._fish.age = self.regions_dialog.age_line_edit.text()
-        Fish.age = self.regions_dialog.age_line_edit.text()
+        self._fish.age = text
+        Fish.age = text
 
-    def _inoculum_line_edit_event(self):
+    def _inoculum_line_edit_event(self, text):
         # Changes inoculum type text for current fish
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._fish.inoculum = self.regions_dialog.inoculum_line_edit.text()
-        Fish.inoculum = self.regions_dialog.inoculum_line_edit.text()
+        self._fish.inoculum = text
+        Fish.inoculum = text
 
     def _add_notes_text_edit_event(self):
         # For now, removed logging from this event. Currently is triggered off of textChanged
         # which triggers every single time the text is set (via user or the program) which
         # floods the logs. Couldn't find a different signal for QT Text Edit.
-        self._fish.add_notes = self.regions_dialog.add_notes_text_edit.toPlainText()
-        Fish.add_notes = self.regions_dialog.add_notes_text_edit.toPlainText()
+        text = self.regions_dialog.add_notes_text_edit.toPlainText()
+        self._fish.add_notes = text
+        Fish.add_notes = text
 
-    def _start_z_line_edit_event(self):
+    def _start_z_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            z_pos = int(self.regions_dialog.start_z_line_edit.text())
+            z_pos = int(text)
             self._region.z_stack_start_pos = z_pos
             Region.z_stack_start_pos = z_pos
 
             self._refresh_dialogs()
 
-    def _end_z_line_edit_event(self):
+    def _end_z_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            z_pos = int(self.regions_dialog.end_z_line_edit.text())
+            z_pos = int(text)
             self._region.z_stack_end_pos = z_pos
             Region.z_stack_end_pos = z_pos
 
             self._refresh_dialogs()
 
-    def _step_size_line_edit_event(self):
+    def _step_size_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            step_size = int(self.regions_dialog.step_size_line_edit.text())
+            step_size = int(text)
             # without this extra validation, user input could be 0, which would
             # break the acquisition script.
             if self.regions_dialog.step_size_line_edit.hasAcceptableInput():
@@ -825,11 +831,11 @@ class AcqController(object):
 
             self._refresh_dialogs()
 
-    def _snap_exposure_line_edit_event(self):
+    def _snap_exposure_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
             if self.regions_dialog.snap_exposure_line_edit.hasAcceptableInput():
-                exp = float(self.regions_dialog.snap_exposure_line_edit.text())
+                exp = float(text)
                 self._region.snap_exposure = exp
                 Region.snap_exposure = exp
 
@@ -837,21 +843,21 @@ class AcqController(object):
             else:
                 self._refresh_dialogs()
 
-    def _video_num_frames_line_edit_event(self):
+    def _video_num_frames_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            num_frames = int(self.regions_dialog.video_num_frames_line_edit.text())
+            num_frames = int(text)
             if self.regions_dialog.video_num_frames_line_edit.hasAcceptableInput():
                 self._region.video_num_frames = num_frames
                 Region.video_num_frames = num_frames
 
             self._refresh_dialogs()
 
-    def _video_exposure_line_edit_event(self):
+    def _video_exposure_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
             if self.regions_dialog.video_exposure_line_edit.hasAcceptableInput():
-                exp = float(self.regions_dialog.video_exposure_line_edit.text())
+                exp = float(text)
                 self._region.video_exposure = exp
                 Region.video_exposure = exp
 
@@ -859,29 +865,26 @@ class AcqController(object):
             else:
                 self._refresh_dialogs()
 
-    def _time_points_check_clicked(self):
+    def _time_points_check_clicked(self, checked):
         # Sets time_points_enabled to current state of checkbox
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        time_points_enabled = self._acq_settings_dialog.time_points_check_box.isChecked()
-        self._acq_settings.time_points_enabled = time_points_enabled
+        self._acq_settings.time_points_enabled = checked
 
         self._refresh_dialogs()
 
-    def _num_time_points_line_edit_event(self):
+    def _num_time_points_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
             if self._acq_settings_dialog.num_time_points_line_edit.hasAcceptableInput():
-                num_time_points = int(self._acq_settings_dialog.num_time_points_line_edit.text())
-                self._acq_settings.num_time_points = num_time_points
+                self._acq_settings.num_time_points = int(text)
 
             self._refresh_dialogs()
 
-    def _time_points_interval_line_edit_event(self):
+    def _time_points_interval_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
             if self._acq_settings_dialog.num_time_points_line_edit.hasAcceptableInput():
-                interval = int(self._acq_settings_dialog.time_points_interval_line_edit.text())
-                self._acq_settings.time_points_interval_sec = interval
+                self._acq_settings.time_points_interval_sec = int(text)
 
     def _channel_move_up_button_clicked(self):
         # Moves channel one index lower in channel_order_list.
@@ -938,15 +941,15 @@ class AcqController(object):
             self._acq_settings.directory = path
             self._acq_settings_dialog.save_path_line_edit.setText(path)
 
-    def _save_path_line_edit_event(self):
+    def _save_path_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         # TODO feels wrong to not have any validation for this. Will probably make a dir validation
         # string at some point in globals
-        self._acq_settings.directory = self._acq_settings_dialog.save_path_line_edit.text()
+        self._acq_settings.directory = text
 
-    def _researcher_line_edit_event(self):
+    def _researcher_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._acq_settings.researcher = self._acq_settings_dialog.researcher_line_edit.text()
+        self._acq_settings.researcher = text
 
     def _start_acquisition_button_clicked(self):
         # Starts acquisition with current acq_settings instance.
@@ -966,9 +969,9 @@ class AcqController(object):
         self._acquisition._acq_dialog.show()
         self._acquisition._acq_dialog.activateWindow()
 
-    def _z_stack_spectral_check_clicked(self):
+    def _z_stack_spectral_check_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._adv_settings.spectral_z_stack_enabled = self._adv_settings_dialog.z_stack_spectral_check_box.isChecked()
+        self._adv_settings.spectral_z_stack_enabled = checked
 
         self._refresh_dialogs()
 
@@ -976,16 +979,15 @@ class AcqController(object):
         # The maximum exposure time during a scan
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings.z_stack_stage_speed = float(self._adv_settings_dialog.stage_speed_combo_box.currentText())
-        
 
         self._refresh_dialogs()
 
-    def _z_stack_exposure_line_edit_event(self):
+    def _z_stack_exposure_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
             if self._adv_settings_dialog.z_stack_exposure_line_edit.hasAcceptableInput():
-                exp = float(self._adv_settings_dialog.z_stack_exposure_line_edit.text())
-                self._adv_settings.z_stack_exposure = float(self._adv_settings_dialog.z_stack_exposure_line_edit.text())
+                exp = float(text)
+                self._adv_settings.z_stack_exposure = exp
                 #Only refresh dialog if exposure in adv_settings doesn't match gui, ie when
                 #an exposure that is outside of the acceptable range is added.
                 if self._adv_settings.z_stack_exposure != exp:
@@ -993,9 +995,9 @@ class AcqController(object):
             else:
                 self._refresh_dialogs()
 
-    def _video_spectral_check_clicked(self):
+    def _video_spectral_check_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._adv_settings.spectral_video_enabled = self._adv_settings_dialog.video_spectral_check_box.isChecked()
+        self._adv_settings.spectral_video_enabled = checked
 
         self._refresh_dialogs()
 
@@ -1040,8 +1042,8 @@ class AcqController(object):
 
         self._refresh_dialogs()
 
-    def _backup_directory_line_edit_event(self):
+    def _backup_directory_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._adv_settings.backup_directory = self._adv_settings_dialog.backup_directory_line_edit.text()
+        self._adv_settings.backup_directory = text
 
         self._refresh_dialogs()
