@@ -337,6 +337,7 @@ class AcqSettings():
         self.time_points_enabled: bool = False
         self._num_time_points: int = 1
         self.time_points_interval_sec: int = 0
+        self.channel_group_name = "Channel"
         self.core_channel_list: list[str] = pycro.get_channel_list()
         self.channel_order_list: list[str] = deepcopy(self.core_channel_list)
         self.directory: str = "G:/"
