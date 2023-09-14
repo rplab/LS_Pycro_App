@@ -58,7 +58,7 @@ class GalvoSettings(object):
     CAM_CHANNEL = "Dev1/Ctr0"
     PLC_INPUT_CHANNEL = 'PFI0'
     DSLM_NUM_SAMPLES = 600
-    DSLM_FREQ = 200
+    DSLM_FREQ = 600
     DSLM_SAMPLE_RATE = DSLM_NUM_SAMPLES*DSLM_FREQ
     LSRM_NUM_SAMPLES = 2048
     # default pulse time is .01 seconds, which is too long considering the maximum framerate is 100 fps, or 1 ms exposure
