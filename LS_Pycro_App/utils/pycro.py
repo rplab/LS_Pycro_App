@@ -33,6 +33,7 @@ _T_AXIS = "time"
 _Z_AXIS = "z"
 _P_AXIS= "position"
 
+_CHANNEL = "Channel"
 
 class image_coords_builder():
     """
@@ -310,7 +311,7 @@ def get_channel_list():
     """
     Returns a list of all presets in the group specified by channel_group_name.
     """
-    core_channel_vector = core.get_available_configs(core.get_channel_group())
+    core_channel_vector = core.get_available_configs(_CHANNEL)
     return [core_channel_vector.get(i) for i in range(core_channel_vector.size())]
 
 
