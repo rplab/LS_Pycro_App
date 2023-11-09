@@ -1,9 +1,9 @@
 import logging
 import numpy as np
-from hardware.exceptions_handle import handle_exception
-from utils import constants
-from utils.abc_attributes_wrapper import abstractattributes
-from utils.pycro import core
+from LS_Pycro_App.hardware.exceptions_handle import handle_exception
+from LS_Pycro_App.utils import constants
+from LS_Pycro_App.utils.abc_attributes_wrapper import abstractattributes
+from LS_Pycro_App.utils.pycro import core
 
 @abstractattributes
 class Plc():
@@ -228,3 +228,13 @@ class Plc():
     @classmethod
     def get_true_z_stack_stage_speed(cls, z_scan_speed):
         return round(1/(cls._get_frame_interval(1, z_scan_speed))*constants.MM_TO_UM, 3)
+    
+
+class KlaPlc(Plc):
+    _ADDR_CAM_OUT = 33
+    _ADDR_STAGE_TTL = 46
+
+
+class WilPlc(Plc):
+    _ADDR_CAM_OUT = 33
+    _ADDR_STAGE_TTL = 34

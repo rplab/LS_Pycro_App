@@ -1,11 +1,11 @@
 import logging
 import numpy as np
 from abc import ABC, abstractmethod
-from hardware import Plc
-from hardware.exceptions_handle import handle_exception
-from utils import constants
-from utils.abc_attributes_wrapper import abstractattributes
-from utils.pycro import core
+from LS_Pycro_App.hardware import Plc
+from LS_Pycro_App.hardware.exceptions_handle import handle_exception
+from LS_Pycro_App.utils import constants
+from LS_Pycro_App.utils.abc_attributes_wrapper import abstractattributes
+from LS_Pycro_App.utils.pycro import core
 
 @abstractattributes
 class Stage(ABC):
@@ -364,4 +364,35 @@ class Stage(ABC):
         cls.send_command(cls._JOYSTICK_AXIS_RESET_COMMAND)
         cls.send_command(cls._JOYSTICK_Z_SPEED)
         cls._logger.info("Joystick has been reset")
-        
+
+
+class WilStage(Stage):
+    def is_z_stage_first(current_x_pos, destination_x_pos):
+        return current_x_pos < destination_x_pos
+
+    STAGE_SERIAL_LABEL = "ASI-XYStage"
+    _X_AXIS_LABEL = "Z"
+    _Y_AXIS_LABEL = "Y"
+    _Z_AXIS_LABEL = "X"
+    _INITIALIZE_SCAN_AXES = "SCAN X=1 Y=0 Z=0 F=0"
+    _START_SCAN_COMMAND  = "SCAN"
+    _SCANR_COMMAND_START = "SCANR"
+    _SCANV_COMMAND = "SCANV Z=0"
+    _JOYSTICK_AXIS_RESET_COMMAND = "J X=4 Y=3 Z=2"
+    _JOYSTICK_Z_SPEED_COMMAND = "JSSPD Z=50"
+
+
+class KlaStage(Stage):
+    def is_z_stage_first(current_x_pos, destination_x_pos):
+        return current_x_pos > destination_x_pos
+
+    STAGE_SERIAL_LABEL = "TigerCommHub"
+    _X_AXIS_LABEL = "X"
+    _Y_AXIS_LABEL = "Y"
+    _Z_AXIS_LABEL = "Z"
+    _INITIALIZE_SCAN_AXES = "2 SCAN Y=0 Z=9 F=0"
+    _START_SCAN_COMMAND  = "2 SCAN"
+    _SCANR_COMMAND_START = "2 SCANR"
+    _SCANV_COMMAND = "2 SCANV Z=0"
+    _JOYSTICK_AXIS_RESET_COMMAND = ""
+    _JOYSTICK_Z_SPEED_COMMAND = "JSSPD Z=50"

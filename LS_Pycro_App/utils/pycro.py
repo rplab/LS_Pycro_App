@@ -19,7 +19,7 @@ https://micro-manager.org/apidoc/mmstudio/latest/org/micromanager/Studio.html
 import contextlib
 from datetime import datetime
 from pycromanager import Studio, Core, JavaObject
-from utils import dir_functions
+from LS_Pycro_App.utils import dir_functions
 
 
 studio = Studio()
@@ -33,7 +33,9 @@ _T_AXIS = "time"
 _Z_AXIS = "z"
 _P_AXIS= "position"
 
+#Group name for channels in Micro-Manager
 _CHANNEL = "Channel"
+
 
 class image_coords_builder():
     """

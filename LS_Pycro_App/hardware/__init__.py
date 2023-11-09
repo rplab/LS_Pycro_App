@@ -1,24 +1,17 @@
 import contextlib
-from microscope_select.microscope_select import microscope, MicroscopeConfig
-from utils import exceptions
-
-if microscope == MicroscopeConfig.KLAMATH:
-    from microscope_configs.klamath.hardware.galvo import Galvo
+from LS_Pycro_App.main.microscope_select.microscope_select import microscope, MicroscopeConfig
+from LS_Pycro_App.utils import exceptions
 
 if microscope == MicroscopeConfig.WILLAMETTE:
-    from microscope_configs.willamette.hardware.camera import Camera
+    Galvo = None
+    from LS_Pycro_App.hardware.camera import Pco as Camera
+    from LS_Pycro_App.hardware.plc import WilPlc as Plc
+    from LS_Pycro_App.hardware.stage import WilStage as Stage
 elif microscope == MicroscopeConfig.KLAMATH:
-    from microscope_configs.klamath.hardware.camera import Camera
-
-if microscope == MicroscopeConfig.WILLAMETTE:
-    from microscope_configs.willamette.hardware.plc import Plc
-elif microscope == MicroscopeConfig.KLAMATH:
-    from microscope_configs.klamath.hardware.plc import Plc
-
-if microscope == MicroscopeConfig.WILLAMETTE:
-    from microscope_configs.willamette.hardware.stage import Stage
-elif microscope == MicroscopeConfig.KLAMATH:
-    from microscope_configs.klamath.hardware.stage import Stage
+    import LS_Pycro_App.hardware.galvo.galvo as Galvo
+    from LS_Pycro_App.hardware.camera import Hamamatsu as Camera
+    from LS_Pycro_App.hardware.plc import KlaPlc as Plc
+    from LS_Pycro_App.hardware.stage import KlaStage as Stage
 
 #Initializes plc to default state.
 with contextlib.suppress(exceptions.GeneralHardwareException):

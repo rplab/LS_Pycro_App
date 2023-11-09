@@ -1,6 +1,10 @@
 """
 Holds constants for units and unit conversions, methods for important calculations
-that are made throughout the program, as well as some directory methods. 
+that are made throughout the program, as well as some directory methods.
+
+Notes:
+-Should switch to astropy.units eventually. Everything units-related could be
+made more rigorous.
 """
 
 #unit conversions
