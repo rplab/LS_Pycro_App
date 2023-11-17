@@ -3,7 +3,7 @@ from LS_Pycro_App.utils import dir_functions
 class AcqDirectory(object):
     """
     Class to create and update directory for acquisition. As the acquisition progresses, fish, region, acq_type,
-    and time_point are updated. Finally in the imaging sequences, get_directory() is called to get the updated
+    and time_point are updated. Finally, in the imaging sequences, get_directory() is called to get the updated
     directory as a string to be passed to a datastore.
     """
     FOLDER_NAME = "Acquisition"
@@ -30,9 +30,9 @@ class AcqDirectory(object):
     def set_root(self, new_root: str):
         self.root = dir_functions.get_unique_directory(f"{new_root}/{self.FOLDER_NAME}")
 
-    def get_file_name(self):
+    def get_file_name(self) -> str:
         return f"{self._FISH}/{self._REGION}/{self._ACQ_TYPE}/{self._TIME_POINT}".replace("/", "_")
 
-    def get_directory(self):
+    def get_directory(self) -> str:
         return f"{self.root}/{self._FISH}/{self._REGION}/{self._ACQ_TYPE}/{self._TIME_POINT}/{self.get_file_name()}"
     
