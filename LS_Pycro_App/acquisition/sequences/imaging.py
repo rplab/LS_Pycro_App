@@ -1,5 +1,5 @@
 """
-This module holds all the Micro-Manager image scripts. All of these are essentially adapted scripts
+This module holds all the imaging sequences . All of these are essentially adapted scripts
 from the Beanshell scripting panel in Micro-Manager. 
 
 The non-underscored methods are image acquisition scripts that are meant to be accessed only by acquisition_classes.
@@ -22,8 +22,9 @@ all methods that rely on an instance of AcquisitionSettings should be set in acq
 """
 
 import contextlib
-import LS_Pycro_App.hardware.camera
 from abc import ABC, abstractmethod
+
+import LS_Pycro_App.hardware.camera
 from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings, Region
 from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
 from LS_Pycro_App.hardware import Camera, Plc, Stage, Galvo
@@ -34,27 +35,27 @@ from LS_Pycro_App.utils.pycro import core
 
 class ImagingSequence(ABC):
     SINGLE_SAVE_IMAGE_LIMIT = 10000
-    WAIT_FOR_IMAGE_DELAY_MS = 1
+    WAIT_FOR_IMAGE_DELAY_MS = 5
     CAMERA_TIMEOUT_MS = 2000
+    ATTEMPT_LIMIT = 2
     """
-    Image acquisition base class. Note that this class is expected to be inherited by a second
-    abstract class, which is then inherited by aa class that includes all implementation.
+    Base class for all imaging sequences (such as z-stacks, videos, snaps). 
+    
+    Imaging sequences typically either work by taking multiple single images or taking continuous sequences of images. 
+    For the former (for snaps and spectral images), sequence should utilize the _snap_image() method to capture images. 
+    For the latter, use the_start_sequence_acquisition() method combined with _wait_for_sequence_images() to retrieve 
+    and save images.
 
-    Currently, all image acquisitions fall under the following two categories:
+    ###abstract methods:
 
-    1. snap acquisition: All images are acquired via "snapping" an image with the camera via camera.snap_image().
-    Taking images is software-controlled.
+    _pre_acquisition_hardware_init(self)
+        Set hardware to state required for imaging sequence. Should set camera to correct trigger mode, set camera 
+        exposure, set plc to correct state, and set galvo (if galvo is implemented).
 
-    2. sequence acquisition: All images are acquired via the Core's sequence_acquisition interface. Taking images is
-    hardware-controlled, either via the camera's internal trigger or an external trigger.
+    _pre_acquisition_hardware_init(self)
+        Creates the summary metadata and sets it as the current datastore's summary metadata. Read docstring and MM
+        documentation found in utils.pycro summary_metadata_builder
     """
-    @abstractmethod
-    def _pre_acquire_hardware_init(self):
-        """
-        Sets hardware to imaging mode.
-        """
-        pass
-
     @abstractmethod
     def _set_summary_metadata(self, channels: str | list):
         """
@@ -73,11 +74,12 @@ class ImagingSequence(ABC):
         should be set to 0.
         """
         pass
-   
+    
     @abstractmethod
     def _acquire_images(self):
         """
         creates datastore, acquires all images in sequence, places them into the datastore, then closes datastore.
+        Should call _pre_acquisition_hardware_init() at the beginning.
         """
         pass
     
@@ -88,27 +90,44 @@ class ImagingSequence(ABC):
         self._abort_flag = abort_flag
         self._acq_directory = acq_directory
 
+    def close_datastore(self):
+        # supress attribute error in case datastore doesn't exist
+        with contextlib.suppress(AttributeError):
+            self._datastore.close()
+            #MM creates a folder with the smame name as the filename, which I found redundant, so the files are moved
+            #to the parent folder and that folder is deleted.
+            dir_functions.move_files_to_parent(self._acq_directory.get_directory())
+
+    def run(self):
+        for update_message in self._acquire_images():
+            yield update_message
+
     def _get_name(self):
         return self.__class__.__name__.lower()
 
     def _create_datastore_with_summary(self, channels: str | list):
         self._acq_directory.set_acq_type(f"{self._get_name()}/{channels}".replace(",",""))
-        self._datastore = pycro.multipage_datastore(self._acq_directory.get_directory())
+        self._datastore = pycro.MultipageDatastore(self._acq_directory.get_directory())
         self._set_summary_metadata(channels)
-
-    def close_datastore(self):
-        # supress attribute error in case datastore doesn't exist
-        with contextlib.suppress(AttributeError):
-            self._datastore.close()
-            dir_functions.move_files_to_parent(self._acq_directory.get_directory())
 
     def _abort_check(self):
         if self._abort_flag.abort:
             self.close_datastore()
             raise exceptions.AbortAcquisitionException
-
-    def _set_channel(self, channel: str):
-        core.set_config(core.get_channel_group(), channel)
+        
+    def _pre_acquisition_hardware_init(self, exposure):
+        Camera.set_exposure(exposure)
+        if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
+            if self._adv_settings.lsrm_enabled and Galvo:
+                framerate = general_functions.exposure_to_frequency(exposure)
+                Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
+                Galvo.set_lsrm_mode()
+                Plc.set_continuous_pulses(framerate)
+                Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
+            else:
+                Camera.set_burst_mode()
+        elif Camera == LS_Pycro_App.hardware.camera.Pco:
+            Camera.set_burst_mode()
 
     def _snap_image(self, frame_num: int, channel_num: int = 0):
         """
@@ -117,6 +136,9 @@ class ImagingSequence(ABC):
         Camera.snap_image()
         image = self._pop_image_with_metadata(frame_num, channel_num)
         self._datastore.put_image(image)
+
+    def _start_sequence_acquisition(self, num_frames: int):
+        Camera.start_sequence_acquisition(num_frames)
 
     def _wait_for_sequence_images(self):
         """
@@ -148,25 +170,20 @@ class ImagingSequence(ABC):
             else:
                 core.sleep(self.WAIT_FOR_IMAGE_DELAY_MS)
                 time_no_image += self.WAIT_FOR_IMAGE_DELAY_MS
-    
+
     def _camera_timeout_response(self):
         """
         Sequence acquisitions are prone to camera timeouts if the core doesn't receive enough images. Unfortunately,
         if this happens, MM will just freeze up, and so custom implementation is required to get through a camera
         timeout.
         """
-        # PLC is set to continuously pulse because when camera freezes in external trigger mode, it sometimes
-        # won't allow you to set its properties without an external trigger, so this provides a trigger.
-        Plc.set_plc_for_continuous_lsrm(20)
+        #Camera times out because it's expecting a certain number of pulses, and it if it doesn't receive them,
+        #it freezes up. Plc is set to pulse so it unfreezes the camera, allowing us to stop the sequence acquisition.
+        Plc.set_continuous_pulses(20)
         core.stop_sequence_acquisition()
         core.clear_circular_buffer()
         self.close_datastore()
         raise exceptions.CameraTimeoutException
-    
-    def run(self):
-        self._pre_acquire_hardware_init()
-        for update_message in self._acquire_images():
-            yield update_message
 
 
 class Snap(ImagingSequence):
@@ -176,35 +193,25 @@ class Snap(ImagingSequence):
     Note that this implements SnapAcquisition, which implements ImagingSequence,
     which means _pre_acquire_hardware_init() is required to be implemented.
     """
-    def _pre_acquire_hardware_init(self):
-        if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
-            if self._adv_settings.lsrm_enabled:
-                framerate = general_functions.exposure_to_frequency(self._region.snap_exposure)
-                Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
-                Galvo.set_lsrm_mode()
-                Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-        else:
-            core.set_exposure(self._region.snap_exposure)
-            Camera.set_burst_mode()
-
-    def _set_summary_metadata(self, channel):
-        summary = pycro.summary_metadata_builder().channel_list(channel).build()
-        self._datastore.set_summary_metadata(summary)
-
     def _pop_image_with_metadata(self, frame_num: int, channel_num: int = 0):
         image = pycro.pop_next_image()
-        coords = pycro.image_coords_builder().t(frame_num).build()
-        meta = pycro.image_metadata_builder(image).x(self._region.x_pos).y(
+        coords = pycro.ImageCoordsBuilder().t(frame_num).build()
+        meta = pycro.ImageMetadataBuilder(image).x(self._region.x_pos).y(
             self._region.y_pos).z(self._region.z_pos).build()
         return image.copy_with(coords, meta)
+    
+    def _set_summary_metadata(self, channel):
+        summary = pycro.SummaryMetadataBuilder().channel_list(channel).build()
+        self._datastore.set_summary_metadata(summary)
 
     def _acquire_images(self):
+        self._pre_acquisition_hardware_init(self._region.snap_exposure)
         self._abort_check()
         for channel in self._region.snap_channel_list:
             self._abort_check()
             yield f"Acquiring {channel} {self._get_name()}"
             self._create_datastore_with_summary(channel)
-            self._set_channel(channel)
+            pycro.set_channel(channel)
             self._snap_image(0)
             self.close_datastore()
 
@@ -215,27 +222,16 @@ class Video(ImagingSequence):
     Note that this implements SnapAcquisition, which implements ImagingSequence,
     which means _pre_acquire_hardware_init() is required to be implemented.
     """
-    def _pre_acquire_hardware_init(self):
-        if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
-            if self._adv_settings.lsrm_enabled:
-                framerate = general_functions.exposure_to_frequency(self._region.video_exposure)
-                Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
-                Galvo.set_lsrm_mode()
-                Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-        else:
-            core.set_exposure(self._region.video_exposure)
-            Camera.set_burst_mode()
-
     def _set_summary_metadata(self, channel):
-        summary_builder = pycro.summary_metadata_builder().t(self._region.video_num_frames)
+        summary_builder = pycro.SummaryMetadataBuilder().t(self._region.video_num_frames)
         summary_builder = summary_builder.channel_list(channel)
         summary_builder = summary_builder.interval_ms(self._region.video_exposure)
         self._datastore.set_summary_metadata(summary_builder.build())
 
     def _pop_image_with_metadata(self, frame_num: int, channel_num: int = 0):
         image = pycro.pop_next_image()
-        coords = pycro.image_coords_builder().t(frame_num).build()
-        meta = pycro.image_metadata_builder(image).x(self._region.x_pos).y(
+        coords = pycro.ImageCoordsBuilder().t(frame_num).build()
+        meta = pycro.ImageMetadataBuilder(image).x(self._region.x_pos).y(
             self._region.y_pos).z(self._region.z_pos).build()
         return image.copy_with(coords, meta)
 
@@ -248,36 +244,16 @@ class Video(ImagingSequence):
         I can't see a future where sequence acquisitions don't follow this pattern, but if it happens, a different
         implementation will have to be written.
         """
+        self._pre_acquisition_hardware_init(self._region.video_exposure)
         for channel in self._region.video_channel_list:
             self._abort_check()
             yield f"Acquiring {channel} {self._get_name()}"
-            self._set_channel(channel)
+            pycro.set_channel(channel)
             self._create_datastore_with_summary(channel)
-            Camera.start_sequence_acquisition(self._region.video_num_frames)
+            self._start_sequence_acquisition(self._region.video_num_frames)
             for update_message in self._wait_for_sequence_images():
                 yield update_message
             self.close_datastore()
-
-
-class VideoSingleSave(Video):
-    """
-    """
-    def _create_datastore_with_summary(self, channels: str | list):
-        self._acq_directory.set_acq_type(f"{self._get_name()}/{channels}".replace(",",""))
-        self._datastore = pycro.ram_datastore()
-        self._set_summary_metadata(channels)
-
-    def _acquire_images(self):
-        self._create_datastore_with_summary(self._region.video_channel_list)
-        for channel in self._region.video_channel_list:
-            self._abort_check()
-            yield f"Acquiring {channel} {self._get_name()}"
-            self._set_channel(channel)
-            Camera.start_sequence_acquisition(self._region.video_num_frames)
-            for update_message in self._wait_for_sequence_images():
-                yield update_message
-        self._datastore.save(self._acq_directory.get_directory())
-        self.close_datastore()
 
 
 class SpectralVideo(Video, ImagingSequence):
@@ -287,26 +263,27 @@ class SpectralVideo(Video, ImagingSequence):
     which means _pre_acquire_hardware_init() is required to be implemented.
     """
     def _set_summary_metadata(self, channel):
-        summary_builder = pycro.summary_metadata_builder().channel_list(channel)
+        summary_builder = pycro.SummaryMetadataBuilder().channel_list(channel)
         summary_builder = summary_builder.t(self._region.video_num_frames)
         summary_builder = summary_builder.interval_ms(self._region.video_exposure)
         self._datastore.set_summary_metadata(summary_builder.build())
-    
+
     def _pop_image_with_metadata(self, frame_num: int, channel_num: int = 0):
         image = pycro.pop_next_image()
-        coords = pycro.image_coords_builder().c(channel_num).t(frame_num).build()
-        meta = pycro.image_metadata_builder(image).x(self._region.x_pos).y(
+        coords = pycro.ImageCoordsBuilder().c(channel_num).t(frame_num).build()
+        meta = pycro.ImageMetadataBuilder(image).x(self._region.x_pos).y(
             self._region.y_pos).z(self._region.z_pos).build()
         return image.copy_with(coords, meta)
 
     def _acquire_images(self):
+        self._pre_acquisition_hardware_init(self._region.video_exposure)
         yield f"Acquiring {self._get_name()}"
         self._create_datastore_with_summary(self._region.video_channel_list)
         current_frame = 0
         while current_frame < self._region.video_num_frames:
             for channel_num, channel in enumerate(self._region.video_channel_list):
                 self._abort_check()
-                self._set_channel(channel)
+                pycro.set_channel(channel)
                 self._snap_image(current_frame, channel_num)
             current_frame += 1
         self.close_datastore()
@@ -318,42 +295,42 @@ class ZStack(ImagingSequence):
     Note that this implements SnapAcquisition, which implements ImagingSequence,
     which means _pre_acquire_hardware_init() is required to be implemented.
     """
-    def _pre_acquire_hardware_init(self):
-        if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
-            if self._adv_settings.lsrm_enabled:
-                framerate = general_functions.exposure_to_frequency(self._adv_settings.z_stack_exposure)
+    def _pre_acquisition_hardware_init(self, exposure):
+        Camera.set_exposure(exposure)
+        if microscope == MicroscopeConfig.KLAMATH:
+            if self._adv_settings.lsrm_enabled and Galvo:
+                framerate = general_functions.exposure_to_frequency(exposure)
                 Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
                 Galvo.set_lsrm_mode()
+                Plc.set_continuous_pulses(framerate)
                 Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
             elif self._adv_settings.edge_trigger_enabled or self._region.z_stack_step_size > 1:
                 Camera.set_edge_trigger_mode()
             else:
                 Camera.set_sync_readout_mode()
-            core.set_exposure(self._adv_settings.z_stack_exposure)
-        else:
+        elif microscope == MicroscopeConfig.WILLAMETTE:
             Camera.set_ext_trig_mode()
-            core.set_exposure(self._adv_settings.z_stack_exposure)
 
     def _set_summary_metadata(self, channel):
-        summary_builder = pycro.summary_metadata_builder().z(self._region.get_z_stack_num_frames()).step(
+        summary_builder = pycro.SummaryMetadataBuilder().z(self._region.get_z_stack_num_frames()).step(
             self._region.z_stack_step_size)
         summary_builder = summary_builder.channel_list(channel).step(self._region.z_stack_step_size)
         self._datastore.set_summary_metadata(summary_builder.build())
 
     def _pop_image_with_metadata(self, frame_num: int, channel_num: int = 0):
         image = pycro.pop_next_image()
-        coords = pycro.image_coords_builder().z(frame_num).build()
-        meta = pycro.image_metadata_builder(image).x(self._region.x_pos).y(self._region.y_pos).z(
+        coords = pycro.ImageCoordsBuilder().z(frame_num).build()
+        meta = pycro.ImageMetadataBuilder(image).x(self._region.x_pos).y(self._region.y_pos).z(
             self._calculate_z_pos(frame_num)).build()
         return image.copy_with(coords, meta)
-
+        
     def _calculate_z_pos(self, slice_num: int):
         if self._region.z_stack_start_pos <= self._region.z_stack_end_pos:
             z_pos = self._region.z_stack_start_pos + self._region.z_stack_step_size*slice_num
         else:
             z_pos = self._region.z_stack_start_pos - self._region.z_stack_step_size*slice_num
         return z_pos
-
+    
     def _acquire_images(self):
         """
         Acquire image method for sequence acquisitions. Current sequence acquisitions iterate through channels,
@@ -363,57 +340,58 @@ class ZStack(ImagingSequence):
         I can't see a future where sequence acquisitions don't follow this pattern, but if it happens, a different
         implementation will have to be written.
         """
+        self._pre_acquisition_hardware_init(self._adv_settings.z_stack_exposure)
         for channel in self._region.z_stack_channel_list:
             self._abort_check()
             yield f"Acquiring {channel} {self._get_name()}"
-            self._set_channel(channel)
+            pycro.set_channel(channel)
             self._create_datastore_with_summary(channel)
             self._initialize_z_stack()
-            Camera.start_sequence_acquisition(self._region.get_z_stack_num_frames())
+            self._start_sequence_acquisition(self._region.get_z_stack_num_frames())
             Stage.scan_start(self._adv_settings.z_stack_stage_speed)
             for update_message in self._wait_for_sequence_images():
                 yield update_message
             self.close_datastore()
 
     def _initialize_z_stack(self):
-        if not self._acq_settings._is_step_size_same():
-            step_size = self._region.z_stack_step_size
-            stage_speed = self._adv_settings.z_stack_stage_speed
-            Plc.set_plc_for_z_stack(step_size, stage_speed)
+        Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
         Stage.set_z_position(self._region.z_stack_start_pos)
         Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
 
 
 class SpectralZStack(ZStack):
     """
-    
     Note that this implements SnapAcquisition, which implements ImagingSequence,
     which means _pre_acquire_hardware_init() is required to be implemented.
     """
-    def _pre_acquire_hardware_init(self):
+    def _pre_acquisition_hardware_init(self, exposure):
+        Camera.set_exposure(exposure)
         if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
-            if self._adv_settings.lsrm_enabled:
-                framerate = general_functions.exposure_to_frequency(self._adv_settings.z_stack_exposure)
+            if self._adv_settings.lsrm_enabled and Galvo:
+                framerate = general_functions.exposure_to_frequency(exposure)
                 Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
                 Galvo.set_lsrm_mode()
+                Plc.set_continuous_pulses(framerate)
                 Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-        else:
-            core.set_exposure(self._adv_settings.z_stack_exposure)
+            else:
+                Camera.set_burst_mode()
+        elif Camera == LS_Pycro_App.hardware.camera.Pco:
             Camera.set_burst_mode()
-
+            
     def _set_summary_metadata(self, channel):
-        summary_builder = pycro.summary_metadata_builder().channel_list(channel)
+        summary_builder = pycro.SummaryMetadataBuilder().channel_list(channel)
         summary_builder = summary_builder.z(self._region.get_z_stack_num_frames()).step(self._region.z_stack_step_size)
         self._datastore.set_summary_metadata(summary_builder.build())
 
     def _pop_image_with_metadata(self, frame_num: int, channel_num: int = 0):
         image = pycro.pop_next_image()
-        coords = pycro.image_coords_builder().c(channel_num).z(frame_num).build()
-        meta = pycro.image_metadata_builder(image).x(self._region.x_pos).y(self._region.y_pos).z(
+        coords = pycro.ImageCoordsBuilder().c(channel_num).z(frame_num).build()
+        meta = pycro.ImageMetadataBuilder(image).x(self._region.x_pos).y(self._region.y_pos).z(
             self._calculate_z_pos(frame_num)).build()
         return image.copy_with(coords, meta)
 
     def _acquire_images(self):
+        self._pre_acquisition_hardware_init(self._adv_settings.z_stack_exposure)
         yield f"Acquiring {self._get_name()}"
         self._create_datastore_with_summary(self._region.z_stack_channel_list)
         slice_num = 0
@@ -422,7 +400,7 @@ class SpectralZStack(ZStack):
             Stage.set_z_position(self._calculate_z_pos(slice_num))
             for channel_num, channel in enumerate(self._region.z_stack_channel_list):
                 self._abort_check()
-                self._set_channel(channel)
+                pycro.set_channel(channel)
                 self._snap_image(slice_num, channel_num)
             slice_num += 1
         self.close_datastore()
