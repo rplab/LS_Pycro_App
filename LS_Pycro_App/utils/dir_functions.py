@@ -1,5 +1,6 @@
 import os
 import shutil
+
 from LS_Pycro_App.utils import constants
  
 def get_unique_directory(dir: str) -> str:
@@ -30,4 +31,4 @@ def move_files_to_parent(child_dir):
         os.rmdir(child_dir)
     except:
         pass
-    os.rename
+    
