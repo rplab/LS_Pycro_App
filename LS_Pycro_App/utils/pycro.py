@@ -18,7 +18,9 @@ https://micro-manager.org/apidoc/mmstudio/latest/org/micromanager/Studio.html
 
 import contextlib
 from datetime import datetime
+
 from pycromanager import Studio, Core, JavaObject
+
 from LS_Pycro_App.utils import dir_functions
 
 
@@ -37,7 +39,7 @@ _P_AXIS= "position"
 _CHANNEL = "Channel"
 
 
-class image_coords_builder():
+class ImageCoordsBuilder():
     """
     Essentially a Python copy of the coords builder in Micro-Manager (see DefaultCoordsBuilder). Contains 
     only the coords necessary to have same metadata format as MM Acquisitions (channel, z, time, and position).
@@ -86,7 +88,7 @@ class image_coords_builder():
         return self._coords_builder.build()
 
 
-class summary_metadata_builder():
+class SummaryMetadataBuilder():
     """
     Essentially a Python copy of the summary metadata builder in Micro-Manager (see DefaultSummaryMetadataBuilder). 
     Contains only the coords necessary to have acceptable metadata (channel, z, and time).
@@ -135,7 +137,7 @@ class summary_metadata_builder():
         self._axis_order = JavaObject("java.util.ArrayList")
         #default 1 is set for each coord so that the axes appear in the metadata. If nothing or 0 are set for an axis 
         #and coords is built, it won't appear.
-        self._intended_builder = image_coords_builder().c(1).z(1).t(1).p(1)
+        self._intended_builder = ImageCoordsBuilder().c(1).z(1).t(1).p(1)
         self._summary_builder = studio.acquisitions().generate_summary_metadata().copy_builder()
     
     def channel_list(self, channels):
@@ -194,7 +196,7 @@ class summary_metadata_builder():
         return self._summary_builder.build()
 
 
-class image_metadata_builder():
+class ImageMetadataBuilder():
     """
     Essentially a Python copy of the image metadata builder in Micro-Manager (see DefaultImageMetadataBuilder). 
     Contains only the coords necessary to have acceptable metadata (x_pos, y_pos, z_pos). Most of the metadata
@@ -239,18 +241,11 @@ class image_metadata_builder():
         return self._meta_builder.build()
 
 
-def create_image_metadata(x_pos, y_pos, z_pos):
-    """
-    Alternative way of creating image metadata object.
-    """
-    return image_metadata_builder().x(x_pos).y(y_pos).z(z_pos).build()
-
-
-class multipage_datastore():
+class MultipageDatastore():
     """
     Class that holds an MM multipage_tiff_datastore object. Methods are the same as MM counterparts
-    except close() which supresses exceptions (mostly to avoid NullPointerException, which is thrown
-    when the datastore is closed when it has no images).
+    except close() which supresses exceptions (only to avoid the NullPointerException that's thrown when an empty
+    datastore is closed).
 
     See: https://micro-manager.org/apidoc/mmstudio/latest/org/micromanager/data/Datastore.html
     """
@@ -278,7 +273,7 @@ class multipage_datastore():
             self._datastore.close()
 
 
-class ram_datastore():
+class RAMDatastore():
     """
     Class that holds an MM ram_datastore object. Methods are the same as MM counterparts
     except close() which supresses exceptions (mostly to avoid NullPointerException, which is thrown
@@ -309,12 +304,17 @@ class ram_datastore():
             self._datastore.close()
 
 
+#misc functions
 def get_channel_list():
     """
     Returns a list of all presets in the group specified by channel_group_name.
     """
     core_channel_vector = core.get_available_configs(_CHANNEL)
     return [core_channel_vector.get(i) for i in range(core_channel_vector.size())]
+
+
+def set_channel(channel: str):
+    core.set_config(_CHANNEL, channel)
 
 
 def pop_next_image():
