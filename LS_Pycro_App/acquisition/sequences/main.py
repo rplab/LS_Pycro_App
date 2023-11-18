@@ -175,6 +175,6 @@ class Acquisition(threading.Thread):
         except:
             pass
         core.clear_circular_buffer()
-        core.set_exposure(Camera.DEFAULT_EXPOSURE)
+        Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
         Camera.set_burst_mode()
         Stage.reset_joystick()
