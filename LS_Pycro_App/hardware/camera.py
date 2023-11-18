@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+
 from LS_Pycro_App.hardware.exceptions_handle import handle_exception
 from LS_Pycro_App.utils.abc_attributes_wrapper import abstractattributes
 from LS_Pycro_App.utils import general_functions, constants
@@ -34,6 +35,12 @@ class Camera(ABC):
         """
         core.set_property(cls.CAM_NAME, property_name, value)
 
+    @classmethod
+    @handle_exception
+    def set_exposure(cls, exposure: float):
+        core.set_exposure(exposure)
+        cls._logger.info(f"Camera exposure set to {exposure} ms")
+        
     @classmethod
     @handle_exception
     def wait_for_camera(cls):
