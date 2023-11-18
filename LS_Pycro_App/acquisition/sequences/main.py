@@ -30,8 +30,9 @@ stage TTL signal itself, which I very highly doubt).
 import logging
 import threading
 import os
-from LS_Pycro_App.acquisition.sequences.orders import TimeSampAcquisition, SampTimeAcquisition, PositionTimeAcquisition
-from LS_Pycro_App.hardware import Stage, Camera, Plc, Galvo
+
+from LS_Pycro_App.acquisition.sequences.orders import TimeSampAcquisition, SampTimeAcquisition, PosTimeAcquisition
+from LS_Pycro_App.hardware import Stage, Camera, Galvo, Plc
 from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings
 from LS_Pycro_App.acquisition.models.adv_settings import AcqOrder
 from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
@@ -54,17 +55,14 @@ class Acquisition(threading.Thread):
     """
     def __init__(self, acq_settings: AcqSettings):
         super().__init__()
-
         self._logger = logging.getLogger(self.__class__.__name__)
         #Reason for this deepcopy is so if settings are changed in the GUI while an acquisition is running,
         #it won't change the settings in the middle of the acquisition
         self._acq_settings = acq_settings
         self._adv_settings = self._acq_settings.adv_settings
-
         self._abort_dialog = AbortDialog()
         self._acq_dialog = AcqDialog()
         self._abort_flag = exceptions.AbortFlag()
-
         self._acq_dialog.abort_button.clicked.connect(self._abort_button_clicked)
         self._abort_dialog.cancel_button.clicked.connect(self._cancel_button_clicked)
         self._abort_dialog.abort_button.clicked.connect(self._abort_confirm_button_clicked)
@@ -90,13 +88,11 @@ class Acquisition(threading.Thread):
         """
         try:
             self._status_update("Initializing Acquisition")
-            self._init_core_settings()
-            self._init_plc()
+            self._init_mm_settings()
             self._init_galvo()
             acq_directory = AcqDirectory(self._acq_settings.directory)
             os.makedirs(acq_directory.root)
             self._write_acquisition_notes(acq_directory)
-
             self._abort_flag.abort = False
             self._start_acquisition(acq_directory)
         except exceptions.AbortAcquisitionException:
@@ -109,19 +105,11 @@ class Acquisition(threading.Thread):
             studio.app().refresh_gui()
             self._status_update("Your acquisition was successful!")
 
-    def _init_core_settings(self):
+    def _init_mm_settings(self):
         core.stop_sequence_acquisition()
         core.clear_circular_buffer()
         core.set_shutter_open(False)
         core.set_auto_shutter(True)
-
-    def _init_plc(self):
-        """
-        Initializes plc to z-stack settings of first region.
-        """
-        stage_speed = self._acq_settings.adv_settings.z_stack_stage_speed
-        step_size = self._acq_settings.fish_list[0].region_list[0].z_stack_step_size
-        Plc.set_plc_for_z_stack(step_size, stage_speed)
 
     def _init_galvo(self):
         if Galvo:
@@ -131,15 +119,7 @@ class Acquisition(threading.Thread):
         """
         Writes current config as acquisition notes at acq_directory.root.
         """
-        self._write_settings_to_config()
         user_config.write_config_file(f"{acq_directory.root}/notes.txt")
-
-    #write_acquisition_notes helpers
-    def _write_settings_to_config(self):
-        """
-        Writes updated settings to config.
-        """
-        self._acq_settings.write_to_config()
 
     def _start_acquisition(self, acq_directory: AcqDirectory):
         if self._adv_settings.acq_order == AcqOrder.TIME_SAMP:
@@ -147,9 +127,7 @@ class Acquisition(threading.Thread):
         elif self._adv_settings.acq_order == AcqOrder.SAMP_TIME:
             sequence = SampTimeAcquisition(self._acq_settings, self._acq_dialog, self._abort_flag, acq_directory)
         elif self._adv_settings.acq_order == AcqOrder.POS_TIME:
-            sequence = PositionTimeAcquisition(self._acq_settings, self._acq_dialog, self._abort_flag, acq_directory)
-        
-        
+            sequence = PosTimeAcquisition(self._acq_settings, self._acq_dialog, self._abort_flag, acq_directory)
         sequence.run()
 
     def _status_update(self, message:str):
@@ -200,8 +178,3 @@ class Acquisition(threading.Thread):
         core.set_exposure(Camera.DEFAULT_EXPOSURE)
         Camera.set_burst_mode()
         Stage.reset_joystick()
-
-    def _write_settings_to_config(self):
-        if Galvo:
-            Galvo.settings.write_to_config()
-        self._acq_settings.write_to_config()
