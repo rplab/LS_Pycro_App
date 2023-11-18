@@ -29,6 +29,7 @@ API is. Will thing more about this.
 """
 
 from PyQt5 import QtCore
+
 from LS_Pycro_App.main.views.py import MainWindow
 from LS_Pycro_App.acquisition.acq_controller import AcqController
 from LS_Pycro_App.hardware.galvo.galvo_controller import GalvoController

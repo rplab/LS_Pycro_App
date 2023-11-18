@@ -1,7 +1,9 @@
 import sys
 from enum import Enum
-from PyQt5.QtWidgets import QApplication
+
 from PyQt5 import QtGui
+from PyQt5.QtWidgets import QApplication
+
 from LS_Pycro_App.utils import user_config
 from LS_Pycro_App.main.microscope_select.microscope_select_dialog import MicroscopeSelectDialog
 
