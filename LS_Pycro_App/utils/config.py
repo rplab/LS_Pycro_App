@@ -84,7 +84,8 @@ class Config(configparser.ConfigParser):
         """
         if not section:
             section = class_instance.__class__.__name__
-        if has_section := self.has_section(section):
+        has_section = self.has_section(section)
+        if has_section:
             self._read_config_section(class_instance, section)
             self.write_class(class_instance, section)
         return has_section
@@ -97,10 +98,13 @@ class Config(configparser.ConfigParser):
         Could add more if it's necessary in the future.
         """
         for key in vars(class_instance).keys():
+            option = key.strip("_")
+            if hasattr(class_instance, "NOT_CONFIG_PROPS"):
+                if option in class_instance.NOT_CONFIG_PROPS:
+                    continue
             try:
                 #attributes are stripped when written to config, so must be stripped
                 #when reading.
-                option = key.strip("_")
                 if type(vars(class_instance)[key]) == int:
                     vars(class_instance)[key] = self.getint(section, option)
                 elif type(vars(class_instance)[key]) == float:
