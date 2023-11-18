@@ -13,17 +13,17 @@ elif microscope == MicroscopeConfig.KLAMATH:
     from LS_Pycro_App.hardware.plc import KlaPlc as Plc
     from LS_Pycro_App.hardware.stage import KlaStage as Stage
 
-#Initializes plc to default state.
-with contextlib.suppress(exceptions.GeneralHardwareException):
+#Initializes camera to default state.
+with contextlib.suppress(exceptions.HardwareException):
     Camera.set_burst_mode()
 
 #Initialize stage to default state.
-with contextlib.suppress(exceptions.GeneralHardwareException):
+with contextlib.suppress(exceptions.HardwareException):
     Stage.set_x_stage_speed(Stage._DEFAULT_STAGE_SPEED_UM_PER_S)
     Stage.set_y_stage_speed(Stage._DEFAULT_STAGE_SPEED_UM_PER_S)
     Stage.set_z_stage_speed(Stage._DEFAULT_STAGE_SPEED_UM_PER_S)
     Stage.reset_joystick()
 
 #Initializes plc to default state.
-with contextlib.suppress(exceptions.GeneralHardwareException):
+with contextlib.suppress(exceptions.HardwareException):
     Plc.init_pulse_mode()
