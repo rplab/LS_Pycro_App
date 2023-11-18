@@ -43,9 +43,11 @@ are created.
 """
 
 import logging
-import nidaqmx
 import numpy as np
+
+import nidaqmx
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
+
 from LS_Pycro_App.hardware.exceptions_handle import handle_exception
 from LS_Pycro_App.hardware.galvo.galvo_settings import GalvoSettings
 from LS_Pycro_App.utils import constants
