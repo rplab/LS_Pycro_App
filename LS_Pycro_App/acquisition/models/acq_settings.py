@@ -185,7 +185,7 @@ class Region():
 
     @property
     def z_stack_channel_list(self):
-        AcqSettings.arrange_list_from_order_list(self._z_stack_channel_list)
+        AcqSettings.order_from_order_list(self._z_stack_channel_list)
         return self._z_stack_channel_list
     
     @z_stack_channel_list.setter
@@ -213,7 +213,7 @@ class Region():
 
     @property
     def snap_channel_list(self):
-        AcqSettings.arrange_list_from_order_list(self._snap_channel_list)
+        AcqSettings.order_from_order_list(self._snap_channel_list)
         return self._snap_channel_list
     
     @snap_channel_list.setter
@@ -250,7 +250,7 @@ class Region():
 
     @property
     def video_channel_list(self):
-        AcqSettings.arrange_list_from_order_list(self._video_channel_list)
+        AcqSettings.order_from_order_list(self._video_channel_list)
         return self._video_channel_list
     
     @video_channel_list.setter
@@ -258,35 +258,33 @@ class Region():
         self._video_channel_list = value
         Region._video_channel_list = value
 
-    #data api methods
-    def get_num_images(self):
-        num_z_stack_images = 0
-        num_snap_images = 0
-        num_video_images = 0
+    @property
+    def num_images(self):
+        num_images = 0
         if self.z_stack_enabled:
-            self.get_z_stack_num_frames()
-            num_z_stack_images = len(self.z_stack_channel_list)*self.get_z_stack_num_frames()
+            num_images += len(self.z_stack_channel_list)*self.z_stack_num_frames
         if self.snap_enabled:
-            num_snap_images = len(self.snap_channel_list)
+            num_images += len(self.snap_channel_list)
         if self.video_enabled:
-            num_video_images = len(self.video_channel_list)*self.video_num_frames
-        return num_z_stack_images + num_snap_images + num_video_images
+            num_images += len(self.video_channel_list)*self.video_num_frames
+        self._num_images = num_images
+        return num_images
     
-    def get_z_stack_num_frames(self):
+    @property
+    def z_stack_num_frames(self):
         num_frames = int(np.ceil(abs(self.z_stack_end_pos - self.z_stack_start_pos)/self.z_stack_step_size))
-        self.z_stack_num_frames = num_frames
+        self._z_stack_num_frames = num_frames
         return num_frames
 
-    def is_imaging_enabled(self):
-        return (self.snap_enabled or self.video_enabled or self.z_stack_enabled)
+    @property
+    def imaging_enabled(self):
+        return self.snap_enabled or self.video_enabled or self.z_stack_enabled
     
     #config api methods
     def init_from_config(self, fish_num: int, region_num: int) -> bool:
         return user_config.init_class(self, Region.config_section(fish_num, region_num))
     
     def write_to_config(self, fish_num, region_num):
-        self._z_stack_num_frames: int = self.get_z_stack_num_frames()
-        self._num_images: int = self.get_num_images()
         user_config.write_class(self, Region.config_section(fish_num, region_num))
 
     def config_section(fish_num, region_num):
@@ -391,6 +389,23 @@ class Fish():
         self._add_notes = value
         Fish._add_notes= value
 
+    @property
+    def num_images(self):
+        fish_num_images = 0
+        for region in self.region_list:
+            region.num_images
+            fish_num_images += region.num_images
+        self._num_images = fish_num_images
+        return fish_num_images
+    
+    @property
+    def imaging_enabled(self):
+        for region in self.region_list:
+            if region.imaging_enabled:
+                return True
+        else:
+            return False
+
     #region_list methods
     def append_blank_region(self) -> Region:
         region = Region()
@@ -405,21 +420,6 @@ class Fish():
     
     def remove_region(self, region_num):
         del self.region_list[region_num]
-    
-    #other data api methods
-    def is_imaging_enabled(self):
-        for region in self.region_list:
-            if region.is_imaging_enabled():
-                return True
-        else:
-            return False
-
-    def update_num_images(self):
-        fish_num_images = 0
-        for region in self.region_list:
-            region.get_num_images()
-            fish_num_images += region.get_num_images()
-        self.num_images = fish_num_images
 
     #config api methods
     def init_from_config(self, fish_num: int) -> bool:
@@ -502,9 +502,7 @@ class AcqSettings():
 
     #### update_num_images()
         Calculates number of images to be acquired during acquisition and sets self.num_imagesto said number.
-
     """
-
     NOT_CONFIG_PROPS = ["fish_list", "adv_settings"]
     core_channel_list: list[str] = pycro.get_channel_list()
     _channel_order_list: list[str] = deepcopy(core_channel_list)
@@ -533,7 +531,7 @@ class AcqSettings():
     @channel_order_list.setter
     def channel_order_list(self, value):
         self._channel_order_list = value
-        self.fix_channel_list_order()
+        self.reorder_channel_lists()
         AcqSettings._channel_order_list = value
 
     @property
@@ -576,7 +574,6 @@ class AcqSettings():
     def images_per_time_point(self):
         images_per_time_point = 0
         for fish in self.fish_list:
-            fish.update_num_images()
             images_per_time_point += fish.num_images
         self._images_per_time_point = images_per_time_point
         return images_per_time_point
@@ -588,6 +585,15 @@ class AcqSettings():
         else:
             self._total_num_images = self.images_per_time_point
         return self._total_num_images
+    
+    @property
+    def imaging_enabled(self):
+        for fish in self.fish_list:
+            if fish.is_imaging_enabled():
+                return True
+        else:
+            return False
+    
 
     #fish_list methods
     def append_blank_fish(self) -> Fish:
@@ -604,35 +610,34 @@ class AcqSettings():
     def remove_fish(self, fish_num: int):
         del self.fish_list[fish_num]
 
-    #other data api methods
-    def is_imaging_enabled(self):
+    #misc api methods
+    def reorder_channel_lists(self):
+        """
+        reorders region channel lists to match channel_order_list
+        """
         for fish in self.fish_list:
-            if fish.is_imaging_enabled():
-                return True
-        else:
-            return False
+            for region in fish.region_list:
+                self.order_from_order_list(region.snap_channel_list)
+                self.order_from_order_list(region.z_stack_channel_list)
+                self.order_from_order_list(region.video_channel_list)
 
     #config api methods
     def init_from_config(self):
-        """
-        Initializes acq_settings instance attributes with values read from config section
-        """
         user_config.init_class(self)
         self._init_channel_order_list()
         self._init_fish_list_from_config()
         
     def write_to_config(self):
-        """
-        Writes instance attributes to Config section of acquisition settings, advanced settings,
-        and all intances of fish in fish_list to config.
-        """
         user_config.write_class(self)
         user_config.write_class(self.adv_settings)
         self._write_fish_list_to_config()
 
     #api class methods
     @classmethod
-    def arrange_list_from_order_list(cls, lst: list):
+    def order_from_order_list(cls, lst: list):
+        """
+        arranges lst by order of channel_order_list
+        """
         channel_num = 0
         for channel in cls._channel_order_list:
             if channel in lst:
@@ -640,13 +645,6 @@ class AcqSettings():
                 if cur_pos != channel_num:
                     lst[channel_num], lst[cur_pos] = lst[cur_pos], lst[channel_num]
                 channel_num += 1
-
-    def fix_channel_list_order(self):
-        for fish in self.fish_list:
-            for region in fish.region_list:
-                self.arrange_list_from_order_list(region.snap_channel_list)
-                self.arrange_list_from_order_list(region.z_stack_channel_list)
-                self.arrange_list_from_order_list(region.video_channel_list)
 
     #config helpers
     def _init_fish_list_from_config(self):
@@ -692,7 +690,8 @@ class AcqSettings():
     #misc privates
     def _init_channel_order_list(self):
         """
-        Initializes channel order list so that all channels in the core list are in the order list.
+        Initializes channel order list so that all channels in the core list are in the order list, since core channel
+        list may change between sessions.
         """
         self.core_channel_list = pycro.get_channel_list()
         for channel in self.channel_order_list:

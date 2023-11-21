@@ -74,7 +74,7 @@ class AcquisitionOrder(ABC):
     def _acquire_fish_regions(self, fish: Fish):
         for region_num, region in enumerate(fish.region_list):
             self._abort_check()
-            if region.is_imaging_enabled():
+            if region.imaging_enabled:
                 self._update_region_num(region_num)
 
                 self._move_to_region(region)
@@ -117,9 +117,9 @@ class AcquisitionOrder(ABC):
 
     def _get_start_region(self, start_fish_num):
         for fish in self._acq_settings.fish_list[start_fish_num:]:
-            if fish.is_imaging_enabled():
+            if fish.imaging_enabled:
                 for region in fish.region_list:
-                    if region.is_imaging_enabled():
+                    if region.imaging_enabled:
                         return region, self._acq_settings.fish_list.index(fish)
         else:
             return None, None
@@ -199,7 +199,7 @@ class TimeSampAcquisition(AcquisitionOrder):
     def _acquire_fish(self):
         for fish_num, fish in enumerate(self._acq_settings.fish_list):
             self._abort_check()
-            if fish.is_imaging_enabled():
+            if fish.imaging_enabled:
                 self._update_directory(fish)
                 self._update_fish_num(fish_num)
                 self._acquire_fish_regions(fish)
@@ -258,7 +258,7 @@ class PosTimeAcquisition(AcquisitionOrder):
         for fish_num, fish in enumerate(self._acq_settings.fish_list):
             for region_num, region in enumerate(fish.region_list):
                 self._abort_check()
-                if region.is_imaging_enabled():
+                if region.imaging_enabled:
                     self._update_fish_num(fish_num)
                     self._update_region_num(region_num)
                     self._move_to_region(region)
