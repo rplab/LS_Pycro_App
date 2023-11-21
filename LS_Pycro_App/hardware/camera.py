@@ -31,7 +31,7 @@ class Camera(ABC):
     @handle_exception
     def set_property(cls, property_name: str, value):
         """
-        Sets given camera property name to value
+        Sets given camera MM property to value.
         """
         core.set_property(cls.CAM_NAME, property_name, value)
 
@@ -45,6 +45,7 @@ class Camera(ABC):
     @handle_exception
     def wait_for_camera(cls):
         core.wait_for_device(cls.CAM_NAME)
+        cls._logger.info(f"Waiting for camera")
 
     @classmethod
     @handle_exception
@@ -69,7 +70,6 @@ class Camera(ABC):
         #waits until image is actually in buffer. 
         while not core.get_remaining_image_count() > 0:
             core.sleep(cls._WAIT_FOR_IMAGE_MS)
-
         cls._logger.info(f"Snapped image")
 
     @classmethod
@@ -179,15 +179,6 @@ class Hamamatsu(Camera):
         may not be the actual exposure time set. See the Hamamatsu documentation for more details.
 
         Currently used during z-stacks where the desired exposure time is below 1/stage_speed. 
-
-        ### Parameters:
-
-        #### exposure : int
-            desired Exposure time in ms. Read the Hamamatsu documentation on what exposure
-            times are allowed.
-
-        #### framerate : int
-            framerate of camera.
         """
         cls.stop_live_acquisition()
         cls.set_property(cls._SENSOR_MODE_PROP, cls._AREA_SENSOR_MODE)
@@ -199,8 +190,8 @@ class Hamamatsu(Camera):
     @handle_exception
     def set_sync_readout_mode(cls):
         """
-        Sets the camera properties for a z-stack in normal galvo scanning mode
-        (dslm() in galvo commands). Returns actual set exposure time.
+        Puts camera into edge trigger mode. Default camera mode for a z-stack in normal galvo scanning mode
+        (dslm() in galvo commands).
 
         """
         cls.stop_live_acquisition()

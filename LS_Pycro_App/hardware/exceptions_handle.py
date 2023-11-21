@@ -1,3 +1,7 @@
+"""
+This file contains the general wrapper used to handle exceptions from hardware devices.
+"""
+
 import inspect
 import logging
 from typing import Callable

@@ -9,6 +9,8 @@ from LS_Pycro_App.utils.pycro import core
 @abstractattributes
 class Plc():
     #"abstract attributes" Interpreter will throw an error if the following aren't declared.
+    #_ADDR_CAM_OUT is the output that goes to the camera and _ADDR_STAGE_TTL is the TTL signal from the stage that
+    #goes high when the stage is scanning. 
     _ADDR_CAM_OUT : int
     _ADDR_STAGE_TTL : int
 
@@ -110,7 +112,7 @@ class Plc():
         #### step_size : int
             z-stack step_size in um
 
-        #### z_scan_speed
+        #### stage_scan_speed
             z-stack scan speed in mm/s
         """
         cls.wait_for_plc()
@@ -228,10 +230,13 @@ class Plc():
     
 
 class KlaPlc(Plc):
+    #33 is output 1 on the front panel of the tiger console and 46 is the internal address of the stage TTL signal
     _ADDR_CAM_OUT = 33
     _ADDR_STAGE_TTL = 46
 
 
 class WilPlc(Plc):
+    #33 is output 1 on the front panel of the tiger console and 34 is port 2. Can't use 46 like in the Klamath PLC
+    #because the camera is separate from the tiger console on Willamette.
     _ADDR_CAM_OUT = 33
     _ADDR_STAGE_TTL = 34
