@@ -12,7 +12,6 @@ from LS_Pycro_App.acquisition.models.adv_settings import AcqOrder
 from LS_Pycro_App.acquisition.views.py import AcqRegionsDialog, AcqOrderDialog, AcqSettingsDialog, AdvSettingsDialog, BrowseDialog
 from LS_Pycro_App.hardware import Stage, Camera
 from LS_Pycro_App.utils import constants, exceptions
-from LS_Pycro_App.utils.pycro import core
 
 
 class AcqController(object):

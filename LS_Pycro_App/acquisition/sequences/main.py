@@ -32,7 +32,7 @@ import threading
 import os
 
 from LS_Pycro_App.acquisition.sequences.orders import TimeSampAcquisition, SampTimeAcquisition, PosTimeAcquisition
-from LS_Pycro_App.hardware import Stage, Camera, Galvo, Plc
+from LS_Pycro_App.hardware import Stage, Camera, Galvo
 from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings
 from LS_Pycro_App.acquisition.models.adv_settings import AcqOrder
 from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory

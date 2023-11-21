@@ -21,8 +21,8 @@ When I started this job, my coding background was not great and the code that wa
 just a bit of knowledge of microscope automation and object-oriented programming could figure out. 
 
 Future Changes:
-- I've done almost no formatting. Probably should format everything to be in accordance with PEP 8. Currently using 
-120 line length limit, which I think is reasonable. 80 seems like way too little.
+- Probably should format everything to be in accordance with PEP 8. Currently using 120 line length limit, which I think is reasonable
+with PyQt5. 80 seems like way too little.
 
 - All the controllers are so boilerplatey. Not sure if there's an elegant way around this just due to how the PyQt5
 API is. Will thing more about this.

@@ -12,37 +12,37 @@ elif microscope == MicroscopeConfig.KLAMATH:
     from LS_Pycro_App.acquisition.views.py.adv_settings_dialog import Kla_Ui_AdvSettingsDialog as Ui_AdvSettingsDialog
 
 
-class AbortDialog(QtWidgets.QDialog, Ui_AbortDialog):
+class AbortDialog(Ui_AbortDialog, QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
 
 
-class AcqDialog(QtWidgets.QDialog, Ui_AcqDialog):
+class AcqDialog(Ui_AcqDialog, QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
 
 
-class AcqOrderDialog(QtWidgets.QDialog, Ui_AcqOrderDialog):
+class AcqOrderDialog(Ui_AcqOrderDialog, QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
 
 
-class AcqRegionsDialog(QtWidgets.QDialog, Ui_AcqRegionsDialog):
+class AcqRegionsDialog(Ui_AcqRegionsDialog, QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
 
 
-class AcqSettingsDialog(QtWidgets.QDialog, Ui_AcqSettingsDialog):
+class AcqSettingsDialog(Ui_AcqSettingsDialog, QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
 
 
-class AdvSettingsDialog(QtWidgets.QDialog, Ui_AdvSettingsDialog):
+class AdvSettingsDialog(Ui_AdvSettingsDialog, QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
