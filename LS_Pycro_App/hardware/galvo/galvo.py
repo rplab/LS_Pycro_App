@@ -66,7 +66,7 @@ def set_dslm_mode():
     dslm scanning is just a linear ramp sweep over a voltage range. It is the standard laser 
     scanning mode.
 
-    ### Requires the following attributes to be set in settings:
+    ### Requires the following attributes to be set in galvo settings:
 
     #### focus : float
         focus offset of laser (voltage offset to x-galvo mirror in mV)
@@ -79,45 +79,29 @@ def set_dslm_mode():
     """
     _reset_tasks()
     # For DSLM, want the daq to generate samples continuously since we want the mirrors to scan continuously.
+    sample_mode = nidaqmx.constants.AcquisitionType.CONTINUOUS
     _scan_output.timing.cfg_samp_clk_timing(settings.DSLM_SAMPLE_RATE,
-                                                sample_mode=nidaqmx.constants.AcquisitionType.CONTINUOUS,
-                                                samps_per_chan=settings.DSLM_NUM_SAMPLES)
-
+                                            sample_mode=sample_mode,
+                                            samps_per_chan=settings.DSLM_NUM_SAMPLES)
     # Adds pulse output channel to _cam_output task. The pulse output is to relay the digital signals
     # from the PLC to the camera.
     _cam_output.co_channels.add_co_pulse_chan_time(settings.CAM_CHANNEL,
-                                                        low_time=settings.PULSE_TIME_S,
-                                                        high_time=settings.PULSE_TIME_S)
+                                                   low_time=settings.PULSE_TIME_S,
+                                                   high_time=settings.PULSE_TIME_S)
     _cam_output.timing.cfg_implicit_timing(samps_per_chan=1)
     _cam_output.triggers.start_trigger.cfg_dig_edge_start_trig(settings.PLC_INPUT_CHANNEL)
     _cam_output.triggers.start_trigger.retriggerable = True
-
     # Sets scan data as triangle wave. This causes the galvo to scan back
     # and forth continuously across withe scan_width range, creating the
     # time-averaged light sheet.
-    scan = create_scan_sample()
-    focus = settings.focus*np.ones(settings.DSLM_NUM_SAMPLES)
+    scan = _get_dslm_scan_sample()
+    focus = _get_focus_sample(settings.DSLM_NUM_SAMPLES)
     # Writes analog data to out_stream
     writer = AnalogMultiChannelWriter(_scan_output.out_stream)
     writer.write_many_sample(np.array([focus, scan]))
-
     _scan_output.start()
     _cam_output.start()
-
     _logger.info(f"Galvo set to dslm mode.")
-
-
-def create_scan_sample():
-    """
-    Creates scan sample to be set to the DAQ for dslm scan. First, creates linspace from range -scan_width/2 to
-    scan_width/2 (so total scan width is scan_width). Then, appends reverse of created linspace to itself so that
-    a triangle sample is made. 
-    """
-    scan = np.linspace(-1*settings.dslm_scan_width/2, 
-                        settings.dslm_scan_width/2, 
-                        int(settings.DSLM_NUM_SAMPLES/2))
-    scan = np.concatenate((scan, scan[::-1]), 0) + settings.dslm_offset
-    return scan
 
 
 @handle_exception
@@ -126,20 +110,17 @@ def set_dslm_alignment_mode():
     Same as dslm() but without the ramp sample sent to the y-galvo mirror. Used to align lasers for dslm().
     """
     _reset_tasks()
-
     # Same as continuous_scan but without the scanning or pulse channel.
     # Used to align laser.
+    sample_mode = nidaqmx.constants.AcquisitionType.CONTINUOUS
     _scan_output.timing.cfg_samp_clk_timing(settings.DSLM_SAMPLE_RATE, 
-                                                sample_mode=nidaqmx.constants.AcquisitionType.CONTINUOUS,
-                                                samps_per_chan=settings.DSLM_NUM_SAMPLES)
-
-    scan = np.zeros(settings.DSLM_NUM_SAMPLES) + settings.dslm_offset
-    focus = settings.focus*np.ones(settings.DSLM_NUM_SAMPLES)
+                                            sample_mode=sample_mode,
+                                            samps_per_chan=settings.DSLM_NUM_SAMPLES)
+    scan = _get_alignment_scan_sample(settings.DSLM_NUM_SAMPLES, settings.dslm_offset)
+    focus = _get_focus_sample(settings.DSLM_NUM_SAMPLES)
     writer = AnalogMultiChannelWriter(_scan_output.out_stream)
     writer.write_many_sample(np.array([focus, scan]))
-
     _scan_output.start()
-
     _logger.info(f"Galvo set to dslm alignment mode.")
 
 
@@ -169,12 +150,11 @@ def set_lsrm_mode():
         cam delay in ms in lsrm()
     """
     _reset_tasks()
-
     # Configures clock timing. Note that the AcquisitionType here is FINITE instead of CONTINUOUS in DSLM.
+    sample_mode = nidaqmx.constants.AcquisitionType.FINITE
     _scan_output.timing.cfg_samp_clk_timing(settings.get_lsrm_sample_rate(), 
-                                                sample_mode=nidaqmx.constants.AcquisitionType.FINITE,
-                                                samps_per_chan=settings.LSRM_NUM_SAMPLES)
-
+                                            sample_mode=sample_mode,
+                                            samps_per_chan=settings.LSRM_NUM_SAMPLES)
     # Creates start trigger and makes task retriggerable so that PLC pulses retrigger it. Also adds delay which acts
     # as the laser delay.
     _scan_output.triggers.start_trigger.cfg_dig_edge_start_trig(settings.PLC_INPUT_CHANNEL)
@@ -186,22 +166,19 @@ def set_lsrm_mode():
     # just sets up the camera channel to output a pulse whenever a pulse is received at the _RETRIG_CHAN.
     # God this API is awful.
     _cam_output.co_channels.add_co_pulse_chan_time(settings.CAM_CHANNEL, 
-                                                        initial_delay=settings.lsrm_cam_delay*constants.MS_TO_S,
-                                                        low_time=settings.PULSE_TIME_S, 
-                                                        high_time=settings.PULSE_TIME_S
-                                                        ).co_enable_initial_delay_on_retrigger = True
+                                                   initial_delay=settings.lsrm_cam_delay*constants.MS_TO_S,
+                                                   low_time=settings.PULSE_TIME_S, 
+                                                   high_time=settings.PULSE_TIME_S
+                                                   ).co_enable_initial_delay_on_retrigger = True
     _cam_output.timing.cfg_implicit_timing(samps_per_chan=1)
     _cam_output.triggers.start_trigger.cfg_dig_edge_start_trig(settings.PLC_INPUT_CHANNEL)
     _cam_output.triggers.start_trigger.retriggerable = True
-
-    scan = np.linspace(settings.lsrm_lower, settings.lsrm_upper, settings.LSRM_NUM_SAMPLES)
-    focus = settings.focus * np.ones(settings.LSRM_NUM_SAMPLES)
+    scan = _get_lsrm_scan_sample()
+    focus = _get_focus_sample(settings.LSRM_NUM_SAMPLES)
     writer = AnalogMultiChannelWriter(_scan_output.out_stream)
     writer.write_many_sample(np.array([focus, scan]))
-
     _scan_output.start()
     _cam_output.start()
-
     _logger.info(f"Galvo set to lsrm mode.")
 
 
@@ -212,32 +189,16 @@ def set_lsrm_alignment_mode():
     align lasers for lsrm().
     """
     _reset_tasks()
-
+    sample_mode=nidaqmx.constants.AcquisitionType.CONTINUOUS
     _scan_output.timing.cfg_samp_clk_timing(settings.DSLM_SAMPLE_RATE, 
-                                                sample_mode=nidaqmx.constants.AcquisitionType.CONTINUOUS,
-                                                samps_per_chan=settings.DSLM_NUM_SAMPLES)
-
-    scan = np.zeros(settings.DSLM_NUM_SAMPLES) + settings.lsrm_cur_pos
-    focus = settings.focus*np.ones(settings.DSLM_NUM_SAMPLES)
-
+                                            sample_mode=sample_mode,
+                                            samps_per_chan=settings.DSLM_NUM_SAMPLES)
+    scan = _get_alignment_scan_sample(settings.DSLM_NUM_SAMPLES, settings.lsrm_cur_pos)
+    focus = _get_focus_sample(settings.DSLM_NUM_SAMPLES)
     writer = AnalogMultiChannelWriter(_scan_output.out_stream)
     writer.write_many_sample(np.array([focus, scan]))
-
     _scan_output.start()
-
     _logger.info(f"Galvo set to lsrm alignment mode.")
-
-
-def _reset_tasks():
-    """
-    closes DAQ tasks and creates new, empty tasks with the same variable names.
-    """
-    _scan_output.close()
-    _cam_output.close()
-    _scan_output = nidaqmx.Task()
-    _cam_output = nidaqmx.Task()
-    _scan_output.ao_channels.add_ao_voltage_chan(settings.FOCUS_CHANNEL)
-    _scan_output.ao_channels.add_ao_voltage_chan(settings.OFFSET_CHANNEL)
 
 
 def exit():
@@ -251,3 +212,41 @@ def exit():
     set_dslm_mode()
     _scan_output.close
     _cam_output.close()
+
+
+def _get_alignment_scan_sample(num_samples: int, offset: float):
+    return np.zeros(num_samples) + offset
+
+
+def _get_dslm_scan_sample():
+    """
+    Creates scan sample to be sent to the DAQ for dslm. First, creates linspace from range -scan_width/2 to
+    scan_width/2 (so total scan width is scan_width). Then, appends reverse of created linspace to itself so that
+    a triangle sample is made. 
+    """
+    scan = np.linspace(-1*settings.dslm_scan_width/2, settings.dslm_scan_width/2, int(settings.DSLM_NUM_SAMPLES/2))
+    scan = np.concatenate((scan, scan[::-1]), 0) + settings.dslm_offset
+    return scan
+
+
+def _get_focus_sample(num_samples: int):
+    """
+    creates focus sample to be sent to DAQ for dslm.
+    """
+    return settings.focus*np.ones(num_samples)
+
+
+def _get_lsrm_scan_sample():
+    return np.linspace(settings.lsrm_lower, settings.lsrm_upper, settings.LSRM_NUM_SAMPLES)
+
+
+def _reset_tasks():
+    """
+    closes DAQ tasks and creates new, empty tasks with the same variable names.
+    """
+    _scan_output.close()
+    _cam_output.close()
+    _scan_output = nidaqmx.Task()
+    _cam_output = nidaqmx.Task()
+    _scan_output.ao_channels.add_ao_voltage_chan(settings.FOCUS_CHANNEL)
+    _scan_output.ao_channels.add_ao_voltage_chan(settings.OFFSET_CHANNEL)
