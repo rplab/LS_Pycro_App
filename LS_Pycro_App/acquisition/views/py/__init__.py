@@ -1,5 +1,5 @@
 from PyQt5 import QtWidgets
-from LS_Pycro_App.main.microscope_select.microscope_select import microscope, MicroscopeConfig
+from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
 from LS_Pycro_App.acquisition.views.py.abort_dialog import Ui_AbortDialog
 from LS_Pycro_App.acquisition.views.py.acq_dialog import Ui_AcqDialog
 from LS_Pycro_App.acquisition.views.py.acq_order_dialog import Ui_AcqOrderDialog

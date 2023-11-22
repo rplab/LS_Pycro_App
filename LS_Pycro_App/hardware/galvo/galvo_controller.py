@@ -5,7 +5,7 @@ import sys
 from PyQt5 import QtGui
 
 from LS_Pycro_App.hardware import Galvo, Camera, Plc, exceptions
-from LS_Pycro_App.hardware.galvo.views import GalvoDialog
+from LS_Pycro_App.hardware.galvo.views.py import GalvoDialog
 from LS_Pycro_App.utils import general_functions
 
 
