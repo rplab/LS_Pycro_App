@@ -11,9 +11,12 @@ from LS_Pycro_App.utils.exceptions import HardwareException
 #TODO Test hardware for raise exceptions and add specific exception handling from exceptions raised in
 #methods themselves.
 def handle_exception(funct: Callable):
+    """
+    Generic hardware exception handle. If failed, attempts funct one more time
+    and then fails and raises HardwareException if it fails again.
+    """
     def wrapper(*args, **kwargs):
         logger = logging.getLogger(inspect.getmodule(funct).__name__)
-        
         attempts = 2
         for exception_count in range(attempts):
             try:
