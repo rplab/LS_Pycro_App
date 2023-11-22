@@ -16,8 +16,8 @@ from LS_Pycro_App.utils import constants, exceptions
 
 class AcqController(object):
     """
-    This is the controller of the MVC framework formed by AcqSettings, 
-    AcquisitionRegionsDialog (and AcquisitionDialog), and this class. This class controls
+    This is the controller of the acquisition module. The main model is the AcqSettings class and the
+    view is  AcquisitionRegionsDialog (and AcquisitionDialog). This class controls
     the gui value display and logic, and controls an instance of AcqSettings
     to hold data from user input. 
 
@@ -30,7 +30,7 @@ class AcqController(object):
     and Region. self._fish and self._region are assigned to elements in self._acq_settings.fish_list 
     and fish.region_list through the use of fish_num and region_num indexes. Since lists are mutable,
     changing self._fish after assigning it to an element in acq_settings.fish_list will change
-    the element itself (it's a reference to the same object in memory).
+    the element itself (it's a reference to the same object).
 
     If an element doesn't exist at the index specified by fish_num or region_num, a new instance is
     created at self._fish or self._region, but is not immediately initialized to fish_list or region_list. 
@@ -42,27 +42,7 @@ class AcqController(object):
     - This is by far the most boilerplatey/gross file in the whole application. Main way to fix this 
     is to find a better way to connect PyQt5 buttons to methods.
 
-    - I go back and forth on whether the GUI button states should be set in their
-    individual action listener events or if there should be a single function that 
-    is called that updates all GUI elements at once. Currently, it's the latter.
-    From a readability perspective, I like it this way. If performance ever becomes an
-    issue (I doubt it ever will), it should switch to the prior.
-
     - Color code table so that regions from the same fish are the same color
-
-    - Not sure how to deal with new instances of region. When a new instance of
-    region is created, how should the GUI change? Should it be blank?
-    Should it show the default values? For now, uses class attributes in data
-    classes as default values and updates them to most recently set values.
-
-    - User entry validation could be much better. Perhaps creating entry formats would be useful,
-    especially for things like directories.
-
-    - _set_table() is awful. There's probably a better way to do this. God I hate coding GUI.
-
-    - For now, acq_settings (the model) and the dialogs (view) are initialized inside the controller class.
-    Should be fine for now, but if any of these were to be extended, they should probably be added as arguments
-    in the constructor (__init__()).
     """
     
     NUM_DECIMAL_PLACES = 3

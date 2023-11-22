@@ -13,14 +13,38 @@ from LS_Pycro_App.acquisition.sequences.imaging import ImagingSequence, Snap, Vi
 
 
 class AcquisitionOrder(ABC):
+    """
+    Abstract class that controls the order of region, fish, and time points during image acquisition.
+
+    ### Child Classes:
+
+    TimeSampAcquisition
+        The default acquisition order. It takes does a full acquisition of all fish for each time point.
+
+    SampTimeAcquisition
+        Performs a full time series for each fish. Ie, if there are two fish in
+        AcqSettings.fish_list and timepoints are enabled, a full time series will be performed for the
+        first fish, and then once concluded, a full time series of the second fish will be acquired.
+
+    PosTimeAcquisition
+        Ie, if there is one fish with two regions AcqSettings.fish_list and timepoints are enabled, 
+        a full time series will be performed for the first region, and then once concluded, a full 
+        time series of the second region will be acquired.
+
+
+    Abstract Methods:
+
+    #### run()
+        starts acquisition
+    """
     # delay is pretty arbitrary. At the very least should be less than a second
     # to avoid inconsistent intervals between timepoints.
-    TIME_UPDATE_DELAY_S = .01
+    TIME_DIALOG_UPDATE_DELAY_S = .01
 
     @abstractmethod
     def run(self):
         """
-        starts acquisition.
+        starts acquisition
         """
         pass
 
@@ -66,7 +90,7 @@ class AcquisitionOrder(ABC):
         while self._get_time_remaining(start_time) > 0:
             self._abort_check()
             self.update_time_left(start_time)
-            time.sleep(self.TIME_UPDATE_DELAY_S)
+            time.sleep(self.TIME_DIALOG_UPDATE_DELAY_S)
 
     #run helpers
     def _acquire_regions(self, fish: Fish):
@@ -175,6 +199,15 @@ class AcquisitionOrder(ABC):
 
 
 class TimeSampAcquisition(AcquisitionOrder):
+    """
+    TimeSampAcquisition is the default acquisition order. It takes does a full acquisition of all fish
+    for each time point.
+
+    Public Methods:
+
+    #### run()
+        runs acquisition
+    """
     def run(self):
         start_region = self._get_start_region(0)[0]
         if not start_region:
@@ -204,6 +237,16 @@ class TimeSampAcquisition(AcquisitionOrder):
 
 
 class SampTimeAcquisition(AcquisitionOrder):
+    """
+    SampTimeAcquisition performs a full time series for each fish. Ie, if there are two fish in
+    AcqSettings.fish_list and timepoints are enabled, a full time series will be performed for the
+    first fish, and then once concluded, a full time series of the second fish will be acquired.
+
+    Public Methods:
+
+    #### run()
+        runs acquisition
+    """
     def run(self):
         if not self._get_start_region(0)[0]:
             raise exceptions.AbortAcquisitionException("No valid region for imaging")
@@ -236,6 +279,16 @@ class SampTimeAcquisition(AcquisitionOrder):
 
 
 class PosTimeAcquisition(AcquisitionOrder):
+    """
+    PosTimeAcquisition performs a full time series for each region. Ie, if there is one fish with two 
+    regions AcqSettings.fish_list and timepoints are enabled, a full time series will be performed for 
+    the first region, and then once concluded, a full time series of the second region will be acquired.
+
+    Public Methods:
+
+    #### run()
+        runs acquisition
+    """
     def run(self):
         if not self._get_start_region(0)[0]:
             raise exceptions.AbortAcquisitionException("No valid region for imaging")
