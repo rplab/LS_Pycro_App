@@ -48,13 +48,16 @@ class ImagingSequence(ABC):
 
     ###abstract methods:
 
-    _pre_acquisition_hardware_init(self)
-        Set hardware to state required for imaging sequence. Should set camera to correct trigger mode, set camera 
-        exposure, set plc to correct state, and set galvo (if galvo is implemented).
-
-    _pre_acquisition_hardware_init(self)
+    _set_summary_metadata()
         Creates the summary metadata and sets it as the current datastore's summary metadata. Read docstring and MM
         documentation found in utils.pycro summary_metadata_builder
+
+    _pop_image_with_metadata()
+        pops the next image from the MM circular buffer, grabs its metadata, updates its metadata, 
+        and then returns image with the updated metadata.
+
+    _acquire_images
+        creates datastore, acquires all images in sequence, places them into the datastore, then closes datastore.
     """
     @abstractmethod
     def _set_summary_metadata(self, channels: str | list):
@@ -189,9 +192,6 @@ class ImagingSequence(ABC):
 class Snap(ImagingSequence):
     """
     Simple snap acquisition. Takes a single image with each channel.
-
-    Note that this implements SnapAcquisition, which implements ImagingSequence,
-    which means _pre_acquire_hardware_init() is required to be implemented.
     """
     def _pop_image_with_metadata(self, frame_num: int, channel_num: int = 0):
         image = pycro.pop_next_image()
@@ -218,9 +218,7 @@ class Snap(ImagingSequence):
 
 class Video(ImagingSequence):
     """
-
-    Note that this implements SnapAcquisition, which implements ImagingSequence,
-    which means _pre_acquire_hardware_init() is required to be implemented.
+    Standard video. Takes a continuous video with region.video_num_frames with each channel provided.
     """
     def _set_summary_metadata(self, channel):
         summary_builder = pycro.SummaryMetadataBuilder().t(self._region.video_num_frames)
@@ -256,11 +254,10 @@ class Video(ImagingSequence):
             self.close_datastore()
 
 
-class SpectralVideo(Video, ImagingSequence):
+class SpectralVideo(Video):
     """
-
-    Note that this implements SnapAcquisition, which implements ImagingSequence,
-    which means _pre_acquire_hardware_init() is required to be implemented.
+    Video that switches between channels every image. Video finishes when there
+    are region.video_num_images images of each channel.
     """
     def _set_summary_metadata(self, channel):
         summary_builder = pycro.SummaryMetadataBuilder().channel_list(channel)
@@ -291,9 +288,10 @@ class SpectralVideo(Video, ImagingSequence):
 
 class ZStack(ImagingSequence):
     """
-
-    Note that this implements SnapAcquisition, which implements ImagingSequence,
-    which means _pre_acquire_hardware_init() is required to be implemented.
+    Z-Stack works by setting camera to external trigger mode, setting the stage to scan, and then
+    having the PLC trigger the camera at specific intervals to acquire images. Because of this,
+    Z-Stack requires the PLC and stage scan to be initialized before acquisition begins.
+    Then, the sequence acquisition is started, the stage starts scanning, and images are collected.
     """
     def _pre_acquisition_hardware_init(self, exposure):
         Camera.set_exposure(exposure)
