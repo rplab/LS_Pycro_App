@@ -15,6 +15,23 @@ from LS_Pycro_App.acquisition.sequences.imaging import ImagingSequence, Snap, Vi
 class AcquisitionOrder(ABC):
     """
     Abstract class that controls the order of region, fish, and time points during image acquisition.
+    Moves stage to region for imaging and then calls run() in imaging sequences to acquire images.
+    Also sets region, fish, and time point in acq_directory so that save directory is initialized correctly. 
+    Child classes should move to correct region and then call _run_imaging_sequences() to acquire images.
+    
+    ### Constructor Parameters:
+
+    acq_settings: AcqSettings
+        acquisition settings used in acquisition
+
+    acq_dialog: AcqDialog
+        acquisition dialog to provide updates during acquisition
+        
+    abort_flag: exceptions.AbortFlag
+        flag to tell if user has aborted acquisition
+
+    acq_directory: AcqDirectory
+        acquisition directory which is updated throughout acquisition to match time point, fish and region.
 
     ### Child Classes:
 
@@ -89,7 +106,7 @@ class AcquisitionOrder(ABC):
     def _wait_for_next_time_point(self, start_time):
         while self._get_time_remaining(start_time) > 0:
             self._abort_check()
-            self.update_time_left(start_time)
+            self._update_time_left(start_time)
             time.sleep(self.TIME_DIALOG_UPDATE_DELAY_S)
 
     #run helpers
@@ -167,7 +184,7 @@ class AcquisitionOrder(ABC):
     def _update_time_point_label(self, time_point: int):
         self._acq_dialog.time_point_label.setText(f"Time Point {time_point + 1}")
 
-    def update_time_left(self, start_time):
+    def _update_time_left(self, start_time):
         minutes_left, seconds_left = self._get_minutes_left(start_time)
         update_message = "next time point:"
         if minutes_left:
