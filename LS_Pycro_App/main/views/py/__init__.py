@@ -3,7 +3,7 @@ from LS_Pycro_App.main.microscope_select.microscope_select import microscope, Mi
 
 if microscope == MicroscopeConfig.WILLAMETTE:
     from LS_Pycro_App.main.views.py.main_window import Wil_Ui_MainWindow as Ui_MainWindow
-else:
+elif microscope == MicroscopeConfig.KLAMATH:
     from LS_Pycro_App.main.views.py.main_window import Kla_Ui_MainWindow as Ui_MainWindow
 
 
