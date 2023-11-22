@@ -79,11 +79,6 @@ class Region():
 
     #### num_images : int
         number of images to be acquired at this region. set by update_num_images().
-
-    ## Instance Methods
-
-    update_num_images() - calculates number of images to be acquired for region instance and sets num_images to said 
-    value.
     """
     #default values don't matter much. Exposures are set to 20 ms, which is what I generally use.
     _x_pos: int = 0
@@ -320,7 +315,7 @@ class Fish():
         any additional notes on fish
 
     #### num_images : int
-        number of images to be acquired at this fish. set by update_num_images()
+        number of images to be acquired at this fish.
 
     ## Instance Methods
 
@@ -329,9 +324,6 @@ class Fish():
 
     #### append_blank_region()
         appends new instance of Region to region_list
-
-    #### update_num_images()
-        calculates number of images to be acquired and sets num_images attribute to it.
     """
     NOT_CONFIG_PROPS = ["region_list"]
 
@@ -426,8 +418,6 @@ class Fish():
         return user_config.init_class(self, Fish.config_section(fish_num))
 
     def write_to_config(self, fish_num: int):
-        self._num_regions = len(self.region_list)
-        self._num_images = self.update_num_images()
         user_config.write_class(self, Fish.config_section(fish_num))
 
     def config_section(fish_num: int):
@@ -589,7 +579,7 @@ class AcqSettings():
     @property
     def imaging_enabled(self):
         for fish in self.fish_list:
-            if fish.is_imaging_enabled():
+            if fish.imaging_enabled:
                 return True
         else:
             return False

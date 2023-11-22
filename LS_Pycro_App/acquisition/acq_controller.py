@@ -511,7 +511,7 @@ class AcqController(object):
                             str(region.video_num_frames), 
                             str(region.video_exposure),
                             ','.join(region.video_channel_list), 
-                            str(region.get_num_images())]
+                            str(region.num_images)]
                 row_list = [QtGui.QStandardItem(element) for element in row_list]
                 self._region_table_model.appendRow(row_list)
         self.regions_dialog.region_table_view.resizeColumnsToContents()
