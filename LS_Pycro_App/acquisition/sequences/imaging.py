@@ -310,7 +310,7 @@ class ZStack(ImagingSequence):
             Camera.set_ext_trig_mode()
 
     def _set_summary_metadata(self, channel):
-        summary_builder = pycro.SummaryMetadataBuilder().z(self._region.get_z_stack_num_frames()).step(
+        summary_builder = pycro.SummaryMetadataBuilder().z(self._region.z_stack_num_frames).step(
             self._region.z_stack_step_size)
         summary_builder = summary_builder.channel_list(channel).step(self._region.z_stack_step_size)
         self._datastore.set_summary_metadata(summary_builder.build())
@@ -345,7 +345,7 @@ class ZStack(ImagingSequence):
             pycro.set_channel(channel)
             self._create_datastore_with_summary(channel)
             self._initialize_z_stack()
-            self._start_sequence_acquisition(self._region.get_z_stack_num_frames())
+            self._start_sequence_acquisition(self._region.z_stack_num_frames)
             Stage.scan_start(self._adv_settings.z_stack_stage_speed)
             for update_message in self._wait_for_sequence_images():
                 yield update_message
@@ -378,7 +378,7 @@ class SpectralZStack(ZStack):
             
     def _set_summary_metadata(self, channel):
         summary_builder = pycro.SummaryMetadataBuilder().channel_list(channel)
-        summary_builder = summary_builder.z(self._region.get_z_stack_num_frames()).step(self._region.z_stack_step_size)
+        summary_builder = summary_builder.z(self._region.z_stack_num_frames).step(self._region.z_stack_step_size)
         self._datastore.set_summary_metadata(summary_builder.build())
 
     def _pop_image_with_metadata(self, frame_num: int, channel_num: int = 0):
@@ -393,7 +393,7 @@ class SpectralZStack(ZStack):
         yield f"Acquiring {self._get_name()}"
         self._create_datastore_with_summary(self._region.z_stack_channel_list)
         slice_num = 0
-        while slice_num < self._region.get_z_stack_num_frames():
+        while slice_num < self._region.z_stack_num_frames:
             self._abort_check()
             Stage.set_z_position(self._calculate_z_pos(slice_num))
             for channel_num, channel in enumerate(self._region.z_stack_channel_list):
