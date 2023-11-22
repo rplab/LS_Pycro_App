@@ -16,7 +16,7 @@ class AbortAcquisitionException(Exception):
     pass
 
 
-class GeneralHardwareException(Exception):
+class HardwareException(Exception):
     """
     General hardware exception for the general exception handling function.
     """

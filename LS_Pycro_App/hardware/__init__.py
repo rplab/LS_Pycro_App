@@ -1,36 +1,26 @@
 import contextlib
-from microscope_select.microscope_select import microscope, MicroscopeConfig
-from utils import exceptions
-
-if microscope == MicroscopeConfig.KLAMATH:
-    from microscope_configs.klamath.hardware.galvo import Galvo
+from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
+from LS_Pycro_App.utils import exceptions
 
 if microscope == MicroscopeConfig.WILLAMETTE:
-    from microscope_configs.willamette.hardware.camera import Camera
+    Galvo = None
+    from LS_Pycro_App.hardware.camera import Pco as Camera
+    from LS_Pycro_App.hardware.plc import WilPlc as Plc
+    from LS_Pycro_App.hardware.stage import WilStage as Stage
 elif microscope == MicroscopeConfig.KLAMATH:
-    from microscope_configs.klamath.hardware.camera import Camera
+    import LS_Pycro_App.hardware.galvo.galvo as Galvo
+    from LS_Pycro_App.hardware.camera import Hamamatsu as Camera
+    from LS_Pycro_App.hardware.plc import KlaPlc as Plc
+    from LS_Pycro_App.hardware.stage import KlaStage as Stage
 
-if microscope == MicroscopeConfig.WILLAMETTE:
-    from microscope_configs.willamette.hardware.plc import Plc
-elif microscope == MicroscopeConfig.KLAMATH:
-    from microscope_configs.klamath.hardware.plc import Plc
-
-if microscope == MicroscopeConfig.WILLAMETTE:
-    from microscope_configs.willamette.hardware.stage import Stage
-elif microscope == MicroscopeConfig.KLAMATH:
-    from microscope_configs.klamath.hardware.stage import Stage
-
-#Initializes plc to default state.
-with contextlib.suppress(exceptions.GeneralHardwareException):
+#Initializes camera to default state.
+with contextlib.suppress(exceptions.HardwareException):
     Camera.set_burst_mode()
 
 #Initialize stage to default state.
-with contextlib.suppress(exceptions.GeneralHardwareException):
-    Stage.set_x_stage_speed(Stage._DEFAULT_STAGE_SPEED_UM_PER_S)
-    Stage.set_y_stage_speed(Stage._DEFAULT_STAGE_SPEED_UM_PER_S)
-    Stage.set_z_stage_speed(Stage._DEFAULT_STAGE_SPEED_UM_PER_S)
-    Stage.reset_joystick()
+with contextlib.suppress(exceptions.HardwareException):
+    Stage.init()
 
 #Initializes plc to default state.
-with contextlib.suppress(exceptions.GeneralHardwareException):
+with contextlib.suppress(exceptions.HardwareException):
     Plc.init_pulse_mode()

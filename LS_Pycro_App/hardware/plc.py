@@ -1,13 +1,16 @@
 import logging
 import numpy as np
-from hardware.exceptions_handle import handle_exception
-from utils import constants
-from utils.abc_attributes_wrapper import abstractattributes
-from utils.pycro import core
+
+from LS_Pycro_App.hardware.exceptions_handle import handle_exception
+from LS_Pycro_App.utils import constants
+from LS_Pycro_App.utils.abc_attributes_wrapper import abstractattributes
+from LS_Pycro_App.utils.pycro import core
 
 @abstractattributes
 class Plc():
     #"abstract attributes" Interpreter will throw an error if the following aren't declared.
+    #_ADDR_CAM_OUT is the output that goes to the camera and _ADDR_STAGE_TTL is the TTL signal from the stage that
+    #goes high when the stage is scanning. 
     _ADDR_CAM_OUT : int
     _ADDR_STAGE_TTL : int
 
@@ -84,19 +87,19 @@ class Plc():
         #step size and z_scan_speed (didn't want an unnecessary import)
         frame_interval = cls._get_frame_interval(step_size=1, z_scan_speed=30)
         
-        cls._set_plc_cell(cls._ADDR_STAGE_TTL, cls._VAL_INPUT, 0, 0, 0)
-        cls._set_plc_cell(cls._ADDR_DELAY_1, cls._VAL_DELAY, 0, cls._ADDR_STAGE_TTL, cls._ADDR_CLK)
-        cls._set_plc_cell(cls._ADDR_OR, cls._VAL_OR, 0, cls._ADDR_DELAY_1, cls._ADDR_DELAY_2)
-        cls._set_plc_cell(cls._ADDR_AND, cls._VAL_AND, 0, cls._ADDR_OR, cls._ADDR_STAGE_TTL)
-        cls._set_plc_cell(cls._ADDR_DELAY_2, cls._VAL_DELAY, frame_interval*cls._CLOCK_TICKS_PER_MS, cls._ADDR_AND, cls._ADDR_CLK)
-        cls._set_plc_cell(cls._ADDR_ONE_SHOT, cls._VAL_ONE_SHOT, cls._TRIGGER_PULSE_WIDTH, cls._ADDR_AND, cls._ADDR_CLK)
-        cls._set_plc_cell(cls._ADDR_CAM_OUT, cls._VAL_OUTPUT, cls._ADDR_ONE_SHOT, 0, 0)
+        cls._set_cell(cls._ADDR_STAGE_TTL, cls._VAL_INPUT, 0, 0, 0)
+        cls._set_cell(cls._ADDR_DELAY_1, cls._VAL_DELAY, 0, cls._ADDR_STAGE_TTL, cls._ADDR_CLK)
+        cls._set_cell(cls._ADDR_OR, cls._VAL_OR, 0, cls._ADDR_DELAY_1, cls._ADDR_DELAY_2)
+        cls._set_cell(cls._ADDR_AND, cls._VAL_AND, 0, cls._ADDR_OR, cls._ADDR_STAGE_TTL)
+        cls._set_cell(cls._ADDR_DELAY_2, cls._VAL_DELAY, frame_interval*cls._CLOCK_TICKS_PER_MS, cls._ADDR_AND, cls._ADDR_CLK)
+        cls._set_cell(cls._ADDR_ONE_SHOT, cls._VAL_ONE_SHOT, cls._TRIGGER_PULSE_WIDTH, cls._ADDR_AND, cls._ADDR_CLK)
+        cls._set_cell(cls._ADDR_CAM_OUT, cls._VAL_OUTPUT, cls._ADDR_ONE_SHOT, 0, 0)
 
         cls._logger.info(f"PLC initialized with frame interval {frame_interval} ms")
 
     @classmethod
     @handle_exception
-    def set_plc_for_z_stack(cls, step_size: int, stage_scan_speed: float):
+    def set_for_z_stack(cls, step_size: int, stage_scan_speed: float):
         """
         Sets the frame interval of the PLC for use during z-stack acquisition. 
         
@@ -109,78 +112,74 @@ class Plc():
         #### step_size : int
             z-stack step_size in um
 
-        #### z_scan_speed
+        #### stage_scan_speed
             z-stack scan speed in mm/s
         """
         cls.wait_for_plc()
 
         frame_interval = cls._get_frame_interval(step_size, stage_scan_speed)
 
-        cls._set_plc_pointer_position(cls._ADDR_DELAY_1)
-        cls._edit_plc_cell_input_1(cls._ADDR_STAGE_TTL)
+        cls._set_pointer_position(cls._ADDR_DELAY_1)
+        cls._edit_cell_input_1(cls._ADDR_STAGE_TTL)
 
-        cls._set_plc_pointer_position(cls._ADDR_AND)
-        cls._edit_plc_cell_input_2(cls._ADDR_STAGE_TTL)
+        cls._set_pointer_position(cls._ADDR_AND)
+        cls._edit_cell_input_2(cls._ADDR_STAGE_TTL)
 
-        cls._set_plc_pointer_position(cls._ADDR_DELAY_2)
-        cls._edit_plc_cell_config(frame_interval*cls._CLOCK_TICKS_PER_MS)
+        cls._set_pointer_position(cls._ADDR_DELAY_2)
+        cls._edit_cell_config(frame_interval*cls._CLOCK_TICKS_PER_MS)
 
         cls._logger.info(f"PLC set for z-stack with frame interval of {frame_interval} ms")
 
     @classmethod
     @handle_exception
-    def set_plc_for_continuous_lsrm(cls, framerate: int):
+    def set_continuous_pulses(cls, frequency: int):
         """
-        Initializes PLC circuit to send continuouse pulses at set intervals determined
-        by the framerate prameter.
-
-        On the Klamath light sheet, this is used for lightsheet readout mode when the stage
-        isn't triggering the PLC, such as videos and snaps in lightsheet readout mode.
+        Initializes PLC to generate continuouse pulses at the given frequency.
 
         ### Parameters:
 
-        #### framerate : int
-            framerate of lightsheet readout mode.
+        #### frequency : int
+            frequency of pulses.
         """
         cls.wait_for_plc()
-        frame_interval = cls._get_frame_interval_from_framerate(framerate)
+        frame_interval = cls._get_frame_interval_from_framerate(frequency)
 
-        cls._set_plc_pointer_position(cls._ADDR_DELAY_1)
-        cls._edit_plc_cell_input_1(cls._ADDR_CONSTANT)
+        cls._set_pointer_position(cls._ADDR_DELAY_1)
+        cls._edit_cell_input_1(cls._ADDR_CONSTANT)
 
-        cls._set_plc_pointer_position(cls._ADDR_AND)
-        cls._edit_plc_cell_input_2(cls._ADDR_CONSTANT)
+        cls._set_pointer_position(cls._ADDR_AND)
+        cls._edit_cell_input_2(cls._ADDR_CONSTANT)
 
-        cls._set_plc_pointer_position(cls._ADDR_DELAY_2)
-        cls._edit_plc_cell_config(frame_interval*cls._CLOCK_TICKS_PER_MS)
+        cls._set_pointer_position(cls._ADDR_DELAY_2)
+        cls._edit_cell_config(frame_interval*cls._CLOCK_TICKS_PER_MS)
         
-        cls._set_plc_pointer_position(cls._ADDR_CONSTANT)
-        cls._edit_plc_cell_type(cls._VAL_CONSTANT)
-        cls._edit_plc_cell_config(cls._PLC_CONSTANT_STATE)
+        cls._set_pointer_position(cls._ADDR_CONSTANT)
+        cls._edit_cell_type(cls._VAL_CONSTANT)
+        cls._edit_cell_config(cls._PLC_CONSTANT_STATE)
 
         cls._logger.info(f"PLC set for continuous LSRM with frame interval of {frame_interval} ms")
 
     #PLC helpers
     @classmethod
-    def _set_plc_cell(cls, address, cell_type, config_value, input_1, input_2):
+    def _set_cell(cls, address, cell_type, config_value, input_1, input_2):
         """
         Sets PLC cell at given address with given properties
         """
-        cls._set_plc_pointer_position(address)
-        cls._edit_plc_cell_type(cell_type)
-        cls._edit_plc_cell_config(config_value)
-        cls._edit_plc_cell_input_1(input_1)
-        cls._edit_plc_cell_input_2(input_2)
+        cls._set_pointer_position(address)
+        cls._edit_cell_type(cell_type)
+        cls._edit_cell_config(config_value)
+        cls._edit_cell_input_1(input_1)
+        cls._edit_cell_input_2(input_2)
 
     @classmethod
-    def _set_plc_pointer_position(cls, address):
+    def _set_pointer_position(cls, address):
         """
         Sets pointer position to address. Allows editing of element at address (or creation if it doesn't exist).
         """
         core.set_property(cls.PLC_NAME, cls._POINTER_POSITION, address)
 
     @classmethod
-    def _edit_plc_cell_type(cls, type):
+    def _edit_cell_type(cls, type):
         """
         Edit cell type of element at current pointer position. Cell type is the type of logic gate, i.e. OR, AND, 
         ONESHOT, DELAY, etc.
@@ -188,7 +187,7 @@ class Plc():
         core.set_property(cls.PLC_NAME, cls._EDIT_CELL_TYPE, type)
 
     @classmethod
-    def _edit_plc_cell_config(cls, value):
+    def _edit_cell_config(cls, value):
         """
         Edit cell config of element at current pointer position. Generally, config is the most important value
         for configuring an element.
@@ -196,14 +195,14 @@ class Plc():
         core.set_property(cls.PLC_NAME, cls._EDIT_CELL_CONFIG, value)
 
     @classmethod
-    def _edit_plc_cell_input_1(cls, value):
+    def _edit_cell_input_1(cls, value):
         """
         Edit input_1 element at current pointer position. What this actually changes depends on the gate type.
         """
         core.set_property(cls.PLC_NAME, cls._EDIT_CELL_INPUT_1, value)
 
     @classmethod
-    def _edit_plc_cell_input_2(cls, value):
+    def _edit_cell_input_2(cls, value):
         """
         Edit input_2 element at current pointer position. What this actually changes depends on the gate type.
         """
@@ -226,5 +225,18 @@ class Plc():
         return np.ceil((1/framerate*constants.S_TO_MS)*cls._CLOCK_TICKS_PER_MS)/cls._CLOCK_TICKS_PER_MS
 
     @classmethod
-    def get_true_z_stack_stage_speed(cls, z_scan_speed):
+    def get_true_z_stack_stage_speed(cls, z_scan_speed: float):
         return round(1/(cls._get_frame_interval(1, z_scan_speed))*constants.MM_TO_UM, 3)
+    
+
+class KlaPlc(Plc):
+    #33 is output 1 on the front panel of the tiger console and 46 is the internal address of the stage TTL signal
+    _ADDR_CAM_OUT = 33
+    _ADDR_STAGE_TTL = 46
+
+
+class WilPlc(Plc):
+    #33 is output 1 on the front panel of the tiger console and 34 is port 2. Can't use 46 like in the Klamath PLC
+    #because the camera is separate from the tiger console on Willamette.
+    _ADDR_CAM_OUT = 33
+    _ADDR_STAGE_TTL = 34

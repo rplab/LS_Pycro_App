@@ -12,9 +12,9 @@ class Config(configparser.ConfigParser):
     Future Changes:
 
     - _config_section_read() only reads in attributes that are already part of the class.
-    Could maybe add a way to dynamically add attributes to class. Only problem that it 
+    Could maybe add a way to dynamically add attributes to class. Only problem is it 
     currently determines the type by the type of the attribute initialized in the class,
-    so would need to figure out type evaluating works.
+    so would need to look into type evaluating.
 
     - get rid of this and use JSON instead
     """
@@ -61,14 +61,17 @@ class Config(configparser.ConfigParser):
             self.add_section(section)
         #This just iterates through the names of the instance attributes in acq_settings
         for key in vars(class_instance).keys():
+            value = str(vars(class_instance)[key])
+            #key is stripped so that config file doesn't have leading underscores.
+            #mainly for consistency but also useful for calling property setter.
+            option = key.strip("_")
             #NOT_CONFIG_PROPS is a list that holds names of instance attributes that
             #shouldn't be written to config.
             if hasattr(class_instance, "NOT_CONFIG_PROPS"):
-                if not key in class_instance.NOT_CONFIG_PROPS:
-                    #adds a section with name and value of instance attribute
-                    self.set(section, key, str(vars(class_instance)[key]))
+                if not option in class_instance.NOT_CONFIG_PROPS:
+                    self.set(section, option, value)
             else:
-                self.set(section, key, str(vars(class_instance)[key]))
+                self.set(section, option, value)
         self.write_config_file(self.file_path)
     
     def init_class(self, class_instance, section: str = None):
@@ -81,40 +84,43 @@ class Config(configparser.ConfigParser):
         """
         if not section:
             section = class_instance.__class__.__name__
-        if has_section := self.has_section(section):
+        has_section = self.has_section(section)
+        if has_section:
             self._read_config_section(class_instance, section)
             self.write_class(class_instance, section)
         return has_section
 
-    def _read_config_section(self, class_instance, section: str):
+    def _read_config_section(self, class_instance: object, section: str):
         """
         Sets class_instance attributes to key-value pairs in section.
 
         Currently supports int, float, bool, str, and lists and dicts of these types.
         Could add more if it's necessary in the future.
         """
-        key_list = [item[0] for item in self.items(section)]
         for key in vars(class_instance).keys():
-            if key in key_list:
-                try:
-                    if type(vars(class_instance)[key]) == int:
-                        vars(class_instance)[key] = self.getint(section, key)
-                    elif type(vars(class_instance)[key]) == float:
-                        vars(class_instance)[key] = self.getfloat(section, key)
-                    elif type(vars(class_instance)[key]) == bool:
-                        vars(class_instance)[key] = self.getboolean(section, key)
-                    elif type(vars(class_instance)[key]) == str:
-                        vars(class_instance)[key] = self.get(section, key)
-                    elif type(vars(class_instance)[key]) == list:
-                        vars(class_instance)[key] = ast.literal_eval(self.get(section, key))
-                    elif type(vars(class_instance)[key]) == dict:
-                        vars(class_instance)[key] = ast.literal_eval(self.get(section, key))
-                except:
-                    exception = f"{section} {key} invalid data type for config initialization"
-                    self._logger.exception(exception)
+            option = key.strip("_")
+            if hasattr(class_instance, "NOT_CONFIG_PROPS"):
+                if option in class_instance.NOT_CONFIG_PROPS:
+                    continue
+            try:
+                #attributes are stripped when written to config, so must be stripped
+                #when reading.
+                if type(vars(class_instance)[key]) == int:
+                    vars(class_instance)[key] = self.getint(section, option)
+                elif type(vars(class_instance)[key]) == float:
+                    vars(class_instance)[key] = self.getfloat(section, option)
+                elif type(vars(class_instance)[key]) == bool:
+                    vars(class_instance)[key] = self.getboolean(section, option)
+                elif type(vars(class_instance)[key]) == str:
+                    vars(class_instance)[key] = self.get(section, option)
                 else:
-                    info = f"{section} {key} read"
-                    self._logger.info(info)
+                    vars(class_instance)[key] = ast.literal_eval(self.get(section, option))
+            except:
+                exception = f"{section} {key} invalid data type for config initialization"
+                self._logger.exception(exception)
+            else:
+                info = f"{section} {key} read"
+                self._logger.info(info)
 
     def _write_comments_section(self):
         """

@@ -6,6 +6,7 @@ Reason for this is that this error is thrown while class definition is
 interpreted rather than when the attribute is accessed. Thus, the program
 will not run unless these attributes are defined.
 """
+
 import inspect
 
 def abstractattributes(base_cls):
@@ -14,6 +15,6 @@ def abstractattributes(base_cls):
         annotations = list(inspect.get_annotations(base_cls).keys())
         for annotation in annotations:
             if annotation not in dir(cls):
-                raise NotImplementedError(f"Class {cls} lacks required {annotation} class attribute.")
+                raise NotImplementedError(f"Class {cls} requires {annotation} class attribute.")
     base_cls.__init_subclass__ = __init_subclass__
     return base_cls

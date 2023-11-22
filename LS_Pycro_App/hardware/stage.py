@@ -1,11 +1,12 @@
 import logging
 import numpy as np
 from abc import ABC, abstractmethod
-from hardware import Plc
-from hardware.exceptions_handle import handle_exception
-from utils import constants
-from utils.abc_attributes_wrapper import abstractattributes
-from utils.pycro import core
+
+from LS_Pycro_App.hardware import Plc
+from LS_Pycro_App.hardware.exceptions_handle import handle_exception
+from LS_Pycro_App.utils import constants
+from LS_Pycro_App.utils.abc_attributes_wrapper import abstractattributes
+from LS_Pycro_App.utils.pycro import core
 
 @abstractattributes
 class Stage(ABC):
@@ -47,12 +48,11 @@ class Stage(ABC):
     _X_AXIS_LABEL : str
     _Y_AXIS_LABEL : str
     _Z_AXIS_LABEL : str
-    _INITIALIZE_SCAN_AXES : str
+    _INIT_SCAN_AXES_COMMAND : str
     _START_SCAN_COMMAND  : str
-    _SCANR_COMMAND_START: str
+    _SCANR_COMMAND: str
     _SCANV_COMMAND : str
     _JOYSTICK_AXIS_RESET_COMMAND : str
-    _JOYSTICK_Z_SPEED_COMMAND : str
 
     @abstractmethod
     def is_z_stage_first(current_x_pos, destination_x_pos) -> bool:
@@ -64,8 +64,8 @@ class Stage(ABC):
 
     _SERIAL : str = "SerialCommand"
     _SERIAL_NUM_DECIMALS : int = 6
-    _JOYSTICK_ENABLE : str = "J X+ Y+ Z+"
-    _JOYSTICK_Z_SPEED : str = "JSSPD Z=50"
+    _JOYSTICK_ENABLE_COMMAND : str = "J X+ Y+ Z+"
+    _JOYSTICK_Z_SPEED_COMMAND : str = "JSSPD Z=50"
 
     _DEFAULT_STAGE_SPEED_UM_PER_S : int = 1000
     #um buffer added to SCAN command so that camera takes enough images
@@ -96,6 +96,13 @@ class Stage(ABC):
         """
         core.set_property(cls.STAGE_SERIAL_LABEL, cls._SERIAL, command)
         cls._logger.info(f"Serial command {command} sent to stage")
+
+    @classmethod
+    def init(cls):
+        cls.set_x_stage_speed(cls._DEFAULT_STAGE_SPEED_UM_PER_S)
+        cls.set_y_stage_speed(cls._DEFAULT_STAGE_SPEED_UM_PER_S)
+        cls.set_z_stage_speed(cls._DEFAULT_STAGE_SPEED_UM_PER_S)
+        cls.reset_joystick()
 
     @classmethod
     @handle_exception
@@ -181,7 +188,7 @@ class Stage(ABC):
     #initialize_scan helpers
     @classmethod
     def _send_scan_setup_commands(cls, start_z, end_z):
-        cls.send_command(cls._INITIALIZE_SCAN_AXES)
+        cls.send_command(cls._INIT_SCAN_AXES_COMMAND)
         cls.send_command(cls._get_scan_r(start_z, end_z))
         cls.send_command(cls._SCANV_COMMAND)
 
@@ -189,7 +196,7 @@ class Stage(ABC):
     def _get_scan_r(cls, start_z, end_z):
         start_z_mm = round(start_z*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)
         end_z_mm = round(cls._get_end_z(start_z, end_z)*constants.UM_TO_MM, cls._SERIAL_NUM_DECIMALS)
-        return f"{cls._SCANR_COMMAND_START} X={start_z_mm} Y={end_z_mm}"
+        return f"{cls._SCANR_COMMAND} X={start_z_mm} Y={end_z_mm}"
 
     @classmethod
     def _get_end_z(cls, start_z, end_z):
@@ -226,10 +233,8 @@ class Stage(ABC):
         """
         cls.wait_for_xy_stage()
         cls.wait_for_z_stage()
-
         corrected_speed = Plc.get_true_z_stack_stage_speed(stage_speed)
         cls.set_z_stage_speed(corrected_speed)
-
         cls.send_command(cls._START_SCAN_COMMAND)
         cls._logger.info("Scan started")
         return corrected_speed
@@ -360,8 +365,38 @@ class Stage(ABC):
         """
         cls.wait_for_xy_stage()
         cls.wait_for_z_stage()
-        cls.send_command(cls._JOYSTICK_ENABLE)
+        cls.send_command(cls._JOYSTICK_ENABLE_COMMAND)
         cls.send_command(cls._JOYSTICK_AXIS_RESET_COMMAND)
-        cls.send_command(cls._JOYSTICK_Z_SPEED)
+        cls.send_command(cls._JOYSTICK_Z_SPEED_COMMAND)
         cls._logger.info("Joystick has been reset")
-        
+
+
+class WilStage(Stage):
+    def is_z_stage_first(current_x_pos, destination_x_pos):
+        return current_x_pos < destination_x_pos
+
+    STAGE_SERIAL_LABEL = "ASI-XYStage"
+    _X_AXIS_LABEL = "Z"
+    _Y_AXIS_LABEL = "Y"
+    _Z_AXIS_LABEL = "X"
+    _INIT_SCAN_AXES_COMMAND = "SCAN X=1 Y=0 Z=0 F=0"
+    _START_SCAN_COMMAND  = "SCAN"
+    _SCANR_COMMAND = "SCANR"
+    _SCANV_COMMAND = "SCANV Z=0"
+    _JOYSTICK_AXIS_RESET_COMMAND = "J X=4 Y=3 Z=2"
+
+
+class KlaStage(Stage):
+    def is_z_stage_first(current_x_pos, destination_x_pos):
+        return current_x_pos > destination_x_pos
+
+    STAGE_SERIAL_LABEL = "TigerCommHub"
+    _X_AXIS_LABEL = "X"
+    _Y_AXIS_LABEL = "Y"
+    _Z_AXIS_LABEL = "Z"
+    _INIT_SCAN_AXES_COMMAND = "2 SCAN Y=0 Z=9 F=0"
+    _START_SCAN_COMMAND  = "2 SCAN"
+    _SCANR_COMMAND = "2 SCANR"
+    _SCANV_COMMAND = "2 SCANV Z=0"
+    _JOYSTICK_AXIS_RESET_COMMAND = ""
+    

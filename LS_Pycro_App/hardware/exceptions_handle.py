@@ -1,15 +1,22 @@
-from functools import wraps
+"""
+This file contains the general wrapper used to handle exceptions from hardware devices.
+"""
+
 import inspect
 import logging
 from typing import Callable
-from utils.exceptions import GeneralHardwareException
+
+from LS_Pycro_App.utils.exceptions import HardwareException
 
 #TODO Test hardware for raise exceptions and add specific exception handling from exceptions raised in
 #methods themselves.
 def handle_exception(funct: Callable):
+    """
+    Generic hardware exception handle. If failed, attempts funct one more time
+    and then fails and raises HardwareException if it fails again.
+    """
     def wrapper(*args, **kwargs):
         logger = logging.getLogger(inspect.getmodule(funct).__name__)
-        
         attempts = 2
         for exception_count in range(attempts):
             try:
@@ -26,5 +33,5 @@ def handle_exception(funct: Callable):
         message = f"{funct.__name__} failed. Check device, logs, and MM Core logs"
         logger.info(message)
         print(message)
-        return GeneralHardwareException
+        raise HardwareException
     return wrapper

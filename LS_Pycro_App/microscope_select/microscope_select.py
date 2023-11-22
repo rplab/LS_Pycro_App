@@ -1,9 +1,11 @@
 import sys
 from enum import Enum
-from PyQt5.QtWidgets import QApplication
+
 from PyQt5 import QtGui
-from utils import user_config
-from microscope_select.microscope_select_dialog import MicroscopeSelectDialog
+from PyQt5.QtWidgets import QApplication
+
+from LS_Pycro_App.utils import user_config
+from LS_Pycro_App.microscope_select.views.py import MicroscopeSelectDialog
 
 
 CONFIG_SECTION = "Microscope Config"
