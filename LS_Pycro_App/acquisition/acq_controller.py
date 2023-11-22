@@ -300,14 +300,13 @@ class AcqController(object):
             # NA because different regions have different numbers of images
             self._acq_settings_dialog.num_images_per_line_edit.setText("N/A")
             self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
-
         memory_gb = self._acq_settings.total_num_images*self._acq_settings.image_size_mb*constants.MB_TO_GB
         self._acq_settings_dialog.memory_line_edit.setText(str(round(memory_gb, AcqController.NUM_DECIMAL_PLACES)))
 
     def _update_adv_settings_dialog(self):
         self._update_adv_z_stack_widgets()
         self._update_adv_video_widgets()
-        self.update_acq_order_widgets()
+        self._update_acq_order_widgets()
         self._update_adv_backup_directory_widgets()
 
     # update_adv_settings_dialog helpers
@@ -319,7 +318,7 @@ class AcqController(object):
     def _update_adv_video_widgets(self):
         self._adv_settings_dialog.video_spectral_check_box.setChecked(self._adv_settings.spectral_video_enabled)
 
-    def update_acq_order_widgets(self):
+    def _update_acq_order_widgets(self):
         self._adv_settings_dialog.acq_order_combo_box.setCurrentText(self._adv_settings.acq_order.name)
 
     def _update_adv_backup_directory_widgets(self):
