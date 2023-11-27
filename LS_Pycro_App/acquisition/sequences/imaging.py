@@ -375,7 +375,7 @@ class SpectralZStack(ZStack):
                 Camera.set_burst_mode()
         elif Camera == LS_Pycro_App.hardware.camera.Pco:
             Camera.set_burst_mode()
-            
+
     def _set_summary_metadata(self, channel):
         summary_builder = pycro.SummaryMetadataBuilder().channel_list(channel)
         summary_builder = summary_builder.z(self._region.z_stack_num_frames).step(self._region.z_stack_step_size)
