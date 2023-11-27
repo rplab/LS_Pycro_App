@@ -14,25 +14,29 @@ class AcqDirectory(object):
         
     def __init__(self, directory: str):
         self.root = dir_functions.get_unique_directory(f"{directory}/{self.FOLDER_NAME}")
+        self._fish = "fish1"
+        self._region = "pos1"
+        self._acq_type = "acq_type"
+        self._time_point = "timepoint1"
 
     def set_fish_num(self, fish_num: int):
-        self._FISH = f"{self._FISH}{fish_num + 1}"
+        self._fish = f"{self._FISH}{fish_num + 1}"
 
     def set_region_num(self, region_num: int):
-        self._REGION = f"{self._REGION}{region_num + 1}"
+        self._region = f"{self._REGION}{region_num + 1}"
 
     def set_acq_type(self, acq_type: str):
-        self._ACQ_TYPE = acq_type
+        self._acq_type = acq_type
 
     def set_time_point(self, time_point: int):
-        self._TIME_POINT = f"{self._TIME_POINT}{time_point + 1}"
+        self._time_point = f"{self._TIME_POINT}{time_point + 1}"
 
     def set_root(self, new_root: str):
         self.root = dir_functions.get_unique_directory(f"{new_root}/{self.FOLDER_NAME}")
 
     def get_file_name(self) -> str:
-        return f"{self._FISH}/{self._REGION}/{self._ACQ_TYPE}/{self._TIME_POINT}".replace("/", "_")
+        return f"{self._fish}/{self._region}/{self._acq_type}/{self._time_point}".replace("/", "_")
 
     def get_directory(self) -> str:
-        return f"{self.root}/{self._FISH}/{self._REGION}/{self._ACQ_TYPE}/{self._TIME_POINT}/{self.get_file_name()}"
+        return f"{self.root}/{self._fish}/{self._region}/{self._acq_type}/{self._time_point}/{self.get_file_name()}"
     
