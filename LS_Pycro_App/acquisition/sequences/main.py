@@ -32,7 +32,7 @@ import threading
 import os
 
 from LS_Pycro_App.acquisition.sequences.orders import TimeSampAcquisition, SampTimeAcquisition, PosTimeAcquisition
-from LS_Pycro_App.hardware import Stage, Camera, Galvo
+from LS_Pycro_App.hardware import Stage, Camera, Galvo, Plc
 from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings
 from LS_Pycro_App.acquisition.models.adv_settings import AcqOrder
 from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
@@ -173,11 +173,10 @@ class Acquisition(threading.Thread):
         self._status_update(second_message)
 
     def _hardware_reset(self):
-        try:
-            core.stop_sequence_acquisition()
-        except:
-            pass
-        core.clear_circular_buffer()
+        Plc.set_continuous_pulses(30)
+        core.stop_sequence_acquisition()
         Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
         Camera.set_burst_mode()
+        Plc.init_pulse_mode()
+        core.clear_circular_buffer()
         Stage.reset_joystick()
