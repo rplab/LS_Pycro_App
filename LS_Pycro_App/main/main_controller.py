@@ -31,6 +31,7 @@ API is. Will thing more about this.
 from PyQt5 import QtCore
 
 from LS_Pycro_App.main.views.py import MainWindow
+from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
 from LS_Pycro_App.acquisition.acq_controller import AcqController
 from LS_Pycro_App.hardware.galvo.galvo_controller import GalvoController
 
@@ -39,6 +40,9 @@ class MainController(object):
         #Same instances of studio, core, mm_hardware_commands, and spim_commands used throughout
         self._main_window = MainWindow()
         self._acquisition_controller = AcqController()
+        if microscope == MicroscopeConfig.KLAMATH:
+            self._galvo_controller = GalvoController()
+            self._main_window.galvo_button.clicked.connect(self._galvo_button_clicked)
         
         #initialize main window and event handlers.
         self._main_window.regions_button.clicked.connect(self._regions_button_clicked)
@@ -53,16 +57,9 @@ class MainController(object):
         self._acquisition_controller.regions_dialog.show()
         self._acquisition_controller.regions_dialog.activateWindow()
 
-    def _exit_button_clicked(self):
-        quit()
-
-
-class KlaMainController(MainController):
-    def __init__(self):
-        super().__init__()
-        self._galvo_controller = GalvoController()
-        self._main_window.galvo_button.clicked.connect(self._galvo_button_clicked)
-
     def _galvo_button_clicked(self):
         self._galvo_controller.galvo_dialog.show()
         self._galvo_controller.galvo_dialog.activateWindow()
+
+    def _exit_button_clicked(self):
+        quit()

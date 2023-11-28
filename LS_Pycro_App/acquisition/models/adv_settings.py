@@ -124,8 +124,8 @@ class AdvSettings():
     def get_speed_list(self):
         speed_list = [15, 30]
         if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
-            self.speed_list.append(45)
-            self.speed_list.append(60)
+            speed_list.append(45)
+            speed_list.append(60)
         return speed_list
             
     def write_to_config(self):

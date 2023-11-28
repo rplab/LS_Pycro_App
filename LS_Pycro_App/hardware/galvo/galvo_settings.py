@@ -89,6 +89,7 @@ class GalvoSettings(object):
         self._lsrm_cam_delay = 0.
         self.lsrm_ili = 1/(self.get_lsrm_sample_rate())
         self._lsrm_num_lines = 30
+        self.init_from_config()
 
     def get_lsrm_sample_rate(self):
         return self.LSRM_NUM_SAMPLES*(self.lsrm_framerate + 1)
