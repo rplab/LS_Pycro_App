@@ -9,6 +9,7 @@ from PyQt5 import QtGui, QtWidgets
 from LS_Pycro_App.acquisition.sequences.main import Acquisition
 from LS_Pycro_App.acquisition.models.acq_settings import Region, Fish, AcqSettings
 from LS_Pycro_App.acquisition.models.adv_settings import AcqOrder
+from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
 from LS_Pycro_App.acquisition.views.py import AcqRegionsDialog, AcqOrderDialog, AcqSettingsDialog, AdvSettingsDialog, BrowseDialog
 from LS_Pycro_App.hardware import Stage, Camera
 from LS_Pycro_App.utils import constants, exceptions
@@ -93,6 +94,7 @@ class AcqController(object):
         self._acq_settings_dialog.channel_order_list_view.setModel(self._channel_order_model)
         self._adv_settings_dialog.stage_speed_combo_box.setModel(self._speed_list_model)
         self._adv_settings_dialog.acq_order_combo_box.setModel(self._acq_order_model)
+
 
         # uses core channel list to initialize list model values
         for channel in self._acq_settings.core_channel_list:
@@ -214,6 +216,10 @@ class AcqController(object):
         self._adv_settings_dialog.backup_directory_browse_button.clicked.connect(self._second_browse_button_clicked)
         self._adv_settings_dialog.backup_directory_line_edit.textEdited.connect(self._backup_directory_line_edit_event)
 
+        if microscope == MicroscopeConfig.KLAMATH:
+            self._adv_settings_dialog.lsrm_check_box.clicked.connect(self._lsrm_check_box_clicked)
+            self._adv_settings_dialog.custom_exposure_check_box.clicked.connect(self._custom_exposure_check_box_clicked)
+
     def _set_additional_widget_settings(self):
         self._acq_settings_dialog.channel_order_list_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.regions_dialog.region_table_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
@@ -294,6 +300,7 @@ class AcqController(object):
         self._adv_settings_dialog.z_stack_spectral_check_box.setChecked(self._adv_settings.spectral_z_stack_enabled)
         self._adv_settings_dialog.stage_speed_combo_box.setCurrentText(str(self._adv_settings.z_stack_stage_speed))
         self._adv_settings_dialog.z_stack_exposure_line_edit.setText(str(self._adv_settings.z_stack_exposure))
+        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(self._adv_settings_dialog.custom_exposure_check_box.isChecked())
 
     def _update_adv_video_widgets(self):
         self._adv_settings_dialog.video_spectral_check_box.setChecked(self._adv_settings.spectral_video_enabled)
@@ -932,4 +939,16 @@ class AcqController(object):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings.backup_directory = text
         self._update_dialogs()
+
+    if microscope == MicroscopeConfig.KLAMATH:
+        def _lsrm_check_box_clicked(self):
+            self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+            self._adv_settings.lsrm_enabled = self._adv_settings_dialog.lsrm_check_box.isChecked()
+            self._update_dialogs()
+        
+        def _custom_exposure_check_box_clicked(self):
+            self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+            self._adv_settings.edge_trigger_enabled = self._adv_settings_dialog.custom_exposure_check_box.isChecked()
+            self._update_dialogs()
+
 
