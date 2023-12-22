@@ -30,8 +30,11 @@ stage TTL signal itself, which I very highly doubt).
 import logging
 import threading
 import os
+from copy import deepcopy
 
 from LS_Pycro_App.acquisition.sequences.orders import TimeSampAcquisition, SampTimeAcquisition, PosTimeAcquisition
+from LS_Pycro_App.acquisition.sequences.imaging import Video
+from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
 from LS_Pycro_App.hardware import Stage, Camera, Galvo, Plc
 from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings
 from LS_Pycro_App.acquisition.models.adv_settings import AcqOrder
@@ -39,7 +42,7 @@ from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
 from LS_Pycro_App.acquisition.views.py import AbortDialog, AcqDialog
 from LS_Pycro_App.hardware import Galvo
 from LS_Pycro_App.utils import exceptions, user_config
-from LS_Pycro_App.utils.pycro import core, studio
+from LS_Pycro_App.utils.pycro import core, studio, BF_CHANNEL
 
 
 class Acquisition(threading.Thread):
@@ -60,6 +63,7 @@ class Acquisition(threading.Thread):
         #it won't change the settings in the middle of the acquisition
         self._acq_settings = acq_settings
         self._adv_settings = self._acq_settings.adv_settings
+        self._acq_directory = AcqDirectory(self._acq_settings.directory)
         self._abort_dialog = AbortDialog()
         self._acq_dialog = AcqDialog()
         self._abort_flag = exceptions.AbortFlag()
@@ -90,11 +94,12 @@ class Acquisition(threading.Thread):
             self._status_update("Initializing Acquisition")
             self._init_mm_settings()
             self._init_galvo()
-            acq_directory = AcqDirectory(self._acq_settings.directory)
-            os.makedirs(acq_directory.root)
-            self._write_acquisition_notes(acq_directory)
+            os.makedirs(self._acq_directory)
+            self._write_acquisition_notes()
             self._abort_flag.abort = False
-            self._start_acquisition(acq_directory)
+            self._start_acquisition()
+            self._status_update("taking end videos...")
+            self._end_acquisition_video()
         except exceptions.AbortAcquisitionException:
             self._abort_acquisition(self._abort_flag.abort)
         except:
@@ -115,13 +120,17 @@ class Acquisition(threading.Thread):
         if Galvo:
             Galvo.set_dslm_mode()
 
-    def _write_acquisition_notes(self, acq_directory: AcqDirectory):
+    def _init_plc(self):
+        Plc.set_for_z_stack(self._acq_settings.get_first_step_size())
+    
+    def _write_acquisition_notes(self):
         """
         Writes current config as acquisition notes at acq_directory.root.
         """
-        user_config.write_config_file(f"{acq_directory.root}/notes.txt")
+        user_config.write_config_file(f"{self._acq_directory.root}/notes.txt")
 
-    def _start_acquisition(self, acq_directory: AcqDirectory):
+    def _start_acquisition(self):
+        acq_directory = deepcopy(self._acq_directory)
         if self._adv_settings.acq_order == AcqOrder.TIME_SAMP:
             sequence = TimeSampAcquisition(self._acq_settings, self._acq_dialog, self._abort_flag, acq_directory)
         elif self._adv_settings.acq_order == AcqOrder.SAMP_TIME:
@@ -178,3 +187,22 @@ class Acquisition(threading.Thread):
         Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
         Camera.set_burst_mode()
         Stage.reset_joystick()
+
+
+    def _end_acquisition_video(self):
+        for fish_num, fish in enumerate(self._acq_settings.fish_list):
+            if fish.imaging_enabled:
+                region = deepcopy(fish.region_list[0])
+                region.video_enabled = True
+                region.video_exposure = 30
+                region.video_num_frames = 125
+                region.video_channel_list = [BF_CHANNEL]
+                Stage.move_stage(region.x_pos, region.y_pos, region.z_pos)
+                acq_directory = deepcopy(self._acq_directory)
+                acq_directory.root = f"{acq_directory.root}/end_videos"
+                acq_directory.set_fish_num(fish_num)
+                acq_directory.set_region_num(0)
+                acq_directory.set_time_point(0)
+                video = Video(region, self._acq_settings, self._abort_flag, acq_directory)
+                for update_message in video.run():
+                    pass
