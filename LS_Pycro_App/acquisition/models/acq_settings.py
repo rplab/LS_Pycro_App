@@ -601,6 +601,21 @@ class AcqSettings():
         del self.fish_list[fish_num]
 
     #misc api methods
+    def is_step_size_same(self):
+        step_size = self.get_first_step_size()
+        for fish in self.fish_list:
+            for region in fish.region_list:
+                if region.z_stack_step_size != step_size and region.z_stack_enabled:
+                    return False
+        else:
+            return True
+        
+    def get_first_step_size(self):
+        for fish in self.fish_list:
+            for region in fish.region_list:
+                if region.z_stack_enabled:
+                    return region.z_stack_step_size
+        
     def reorder_channel_lists(self):
         """
         reorders region channel lists to match channel_order_list
