@@ -718,16 +718,19 @@ class AcqController(object):
         # Changes fish type text for current fish
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._fish.fish_type = text
+        self._acq_settings.write_to_config()
 
     def _age_line_edit_event(self, text):
         # Changes fish age text for current fish
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._fish.age = text
+        self._acq_settings.write_to_config()
 
     def _inoculum_line_edit_event(self, text):
         # Changes inoculum type text for current fish
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._fish.inoculum = text
+        self._acq_settings.write_to_config()
 
     def _add_notes_text_edit_event(self):
         # For now, removed logging from this event. Currently is triggered off of textChanged
@@ -735,6 +738,7 @@ class AcqController(object):
         # floods the logs. Couldn't find a different signal for QT Text Edit.
         text = self.regions_dialog.add_notes_text_edit.toPlainText()
         self._fish.add_notes = text
+        self._acq_settings.write_to_config()
 
     def _start_z_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
