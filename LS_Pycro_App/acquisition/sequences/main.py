@@ -94,7 +94,6 @@ class Acquisition(threading.Thread):
             self._status_update("Initializing Acquisition")
             self._init_mm_settings()
             self._init_galvo()
-            os.makedirs(self._acq_directory)
             self._write_acquisition_notes()
             self._abort_flag.abort = False
             self._start_acquisition()
