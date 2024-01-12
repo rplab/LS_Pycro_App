@@ -11,8 +11,8 @@ from LS_Pycro_App.acquisition.models.acq_settings import Region, Fish, AcqSettin
 from LS_Pycro_App.acquisition.models.adv_settings import AcqOrder
 from LS_Pycro_App.acquisition.views.py import AcqRegionsDialog, AcqOrderDialog, AcqSettingsDialog, AdvSettingsDialog, BrowseDialog
 from LS_Pycro_App.hardware import Stage, Camera
+from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
 from LS_Pycro_App.utils import constants, exceptions
-from LS_Pycro_App.utils.pycro import core
 
 
 class AcqController(object):
@@ -217,19 +217,21 @@ class AcqController(object):
         self._acq_settings_dialog.save_path_line_edit.textEdited.connect(self._save_path_line_edit_event)
         self._acq_settings_dialog.researcher_line_edit.textEdited.connect(self._researcher_line_edit_event)
         self._acq_settings_dialog.start_acquisition_button.clicked.connect(self._start_acquisition_button_clicked)
-        self._acq_settings_dialog.show_acquisition_dialog_button.clicked.connect(
-            self._show_acquisition_dialog_button_clicked)
+        self._acq_settings_dialog.show_acquisition_dialog_button.clicked.connect(self._show_acquisition_dialog_button_clicked)
 
         # Initialize AdvancedSettingsDialog event handlers
         self._adv_settings_dialog.z_stack_spectral_check_box.clicked.connect(self._z_stack_spectral_check_clicked)
         self._adv_settings_dialog.stage_speed_combo_box.activated.connect(self._stage_speed_combo_box_clicked)
+        self._adv_settings_dialog.custom_exposure_check_box.clicked.connect(self._custom_exposure_check_box_clicked)
         self._adv_settings_dialog.z_stack_exposure_line_edit.textEdited.connect(self._z_stack_exposure_line_edit_event)
-
-        self._adv_settings_dialog.video_spectral_check_box.clicked.connect(self._video_spectral_check_clicked)
 
         self._adv_settings_dialog.acq_order_combo_box.activated.connect(self._acq_order_combo_box_clicked)
         self._acq_order_dialog.yes_button.clicked.connect(self._acq_order_yes_button_clicked)
         self._acq_order_dialog.cancel_button.clicked.connect(self._acquisition_order_cancel_button_clicked)
+
+        self._adv_settings_dialog.lsrm_check_box.clicked.connect(self._lsrm_check_box_clicked)
+
+        self._adv_settings_dialog.video_spectral_check_box.clicked.connect(self._video_spectral_check_clicked)
 
         self._adv_settings_dialog.backup_directory_check_box.clicked.connect(self._backup_directory_check_clicked)
         self._adv_settings_dialog.backup_directory_browse_button.clicked.connect(self._second_browse_button_clicked)
@@ -243,6 +245,15 @@ class AcqController(object):
         self._acq_settings_dialog.num_images_per_line_edit.setEnabled(False)
         self._acq_settings_dialog.total_images_line_edit.setEnabled(False)
         self._acq_settings_dialog.memory_line_edit.setEnabled(False)
+
+        #Default should be disabled since application sets exposure time based on stage speed
+        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(False)
+
+        #custom exposure should always be allowed on WIL and lsrm isn't supported.
+        is_wil = microscope == MicroscopeConfig.WILLAMETTE
+        self._adv_settings_dialog.custom_exposure_check_box.setVisible(not is_wil)
+        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(is_wil)
+        self._adv_settings_dialog.lsrm_check_box.setEnabled(is_wil)
 
     def _update_dialogs(self):
         """
@@ -899,6 +910,11 @@ class AcqController(object):
         self._adv_settings.z_stack_stage_speed = float(self._adv_settings_dialog.stage_speed_combo_box.currentText())
         self._update_dialogs()
 
+    def _custom_exposure_check_box_clicked(self):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(self._adv_settings_dialog.custom_exposure_check_box.isChecked())
+        self._update_dialogs()
+
     def _z_stack_exposure_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
@@ -911,11 +927,6 @@ class AcqController(object):
                     self._update_dialogs()
             else:
                 self._update_dialogs()
-
-    def _video_spectral_check_clicked(self, checked):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._adv_settings.spectral_video_enabled = checked
-        self._update_dialogs()
 
     def _acq_order_combo_box_clicked(self):
         # Changes acquisition order. If SAMP_TIME is selected, prompts user to make sure
@@ -935,6 +946,16 @@ class AcqController(object):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings_dialog.acq_order_combo_box.setCurrentText(self._adv_settings.acq_order.name)
         self._acq_order_dialog.close()
+        self._update_dialogs()
+
+    def _lsrm_check_box_clicked(self):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        self._adv_settings.lsrm_enabled = self._adv_settings_dialog.lsrm_check_box.isChecked()
+        self._update_dialogs()
+
+    def _video_spectral_check_clicked(self, checked):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        self._adv_settings.spectral_video_enabled = checked
         self._update_dialogs()
 
     def _backup_directory_check_clicked(self):
