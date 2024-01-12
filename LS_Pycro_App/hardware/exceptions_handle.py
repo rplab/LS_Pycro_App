@@ -27,7 +27,7 @@ def handle_exception(funct: Callable):
                 logger.info(f"{funct.__name__}() completed")
                 return return_value
         
-        message = f"{funct.__name__} failed. Check device, logs, and MM Core logs"
+        message = f"{funct.__name__}() failed. Check device, logs, and MM Core logs"
         logger.info(message)
         print(message)
         raise HardwareException
