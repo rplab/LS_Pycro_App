@@ -22,7 +22,8 @@ import re
 from copy import deepcopy
 
 from LS_Pycro_App.acquisition.models.adv_settings import AdvSettings
-from LS_Pycro_App.utils import constants, user_config, pycro
+from LS_Pycro_App.hardware import Camera
+from LS_Pycro_App.utils import constants, user_config, pycro, general_functions
 from LS_Pycro_App.utils.pycro import core
 
 
@@ -203,6 +204,7 @@ class Region():
     
     @snap_exposure.setter
     def snap_exposure(self, value):
+        value = general_functions.value_in_range(value, Camera.MIN_EXPOSURE, Camera.MAX_EXPOSURE)
         self._snap_exposure = value
         Region._snap_exposure = value
 
@@ -240,6 +242,7 @@ class Region():
     
     @video_exposure.setter
     def video_exposure(self, value):
+        value = general_functions.value_in_range(value, Camera.MIN_EXPOSURE, Camera.MAX_EXPOSURE)
         self._video_exposure = value
         Region._video_exposure = value
 
@@ -442,13 +445,6 @@ class AcqSettings():
 
     #### image_size_mb : float
         image size according to MM (sort of). Calculatiom I use is just width*height*(bit_depth)/10**6
-
-    #### min_exposure : int
-        minimum exposure of camera (for Hamamatsu, min is 1 ms and max is 10000 ms).
-
-    #### max_exposure : int
-        maximum exposure of camera.
-
 
     ## Instance Attributes:
 
