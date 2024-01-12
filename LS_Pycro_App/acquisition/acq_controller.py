@@ -253,7 +253,7 @@ class AcqController(object):
         is_wil = microscope == MicroscopeConfig.WILLAMETTE
         self._adv_settings_dialog.custom_exposure_check_box.setVisible(not is_wil)
         self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(is_wil)
-        self._adv_settings_dialog.lsrm_check_box.setEnabled(is_wil)
+        self._adv_settings_dialog.lsrm_check_box.setEnabled(not is_wil)
 
     def _update_dialogs(self):
         """
