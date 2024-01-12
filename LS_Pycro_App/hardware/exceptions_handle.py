@@ -13,7 +13,6 @@ from LS_Pycro_App.utils.exceptions import HardwareException
 def handle_exception(funct: Callable):
     def wrapper(*args, **kwargs):
         logger = logging.getLogger(inspect.getmodule(funct).__name__)
-        
         attempts = 2
         for exception_count in range(attempts):
             try:
