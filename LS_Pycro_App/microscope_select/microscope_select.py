@@ -5,7 +5,7 @@ from PyQt5 import QtGui
 from PyQt5.QtWidgets import QApplication
 
 from LS_Pycro_App.utils import user_config
-from LS_Pycro_App.main.microscope_select.microscope_select_dialog import MicroscopeSelectDialog
+from LS_Pycro_App.microscope_select.views.py import MicroscopeSelectDialog
 
 
 CONFIG_SECTION = "Microscope Config"

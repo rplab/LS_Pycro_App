@@ -39,9 +39,3 @@ class Ui_MicroscopeSelectDialog(object):
         MicroscopeSelectDialog.setWindowTitle(_translate("MicroscopeSelectDialog", "Dialog"))
         self.microscope_select_label.setText(_translate("MicroscopeSelectDialog", "Select Microscope"))
         self.confirm_button.setText(_translate("MicroscopeSelectDialog", "Confirm"))
-
-
-class MicroscopeSelectDialog(QtWidgets.QDialog, Ui_MicroscopeSelectDialog):
-    def __init__(self):
-        super().__init__()
-        self.setupUi(self)

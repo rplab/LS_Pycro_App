@@ -28,7 +28,7 @@ import LS_Pycro_App.hardware.camera
 from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings, Region
 from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
 from LS_Pycro_App.hardware import Camera, Plc, Stage, Galvo
-from LS_Pycro_App.main.microscope_select.microscope_select import microscope, MicroscopeConfig
+from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
 from LS_Pycro_App.utils import dir_functions, exceptions, pycro, general_functions
 from LS_Pycro_App.utils.pycro import core
 

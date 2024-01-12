@@ -1,5 +1,5 @@
 import contextlib
-from LS_Pycro_App.main.microscope_select.microscope_select import microscope, MicroscopeConfig
+from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
 from LS_Pycro_App.utils import exceptions
 
 if microscope == MicroscopeConfig.WILLAMETTE:
