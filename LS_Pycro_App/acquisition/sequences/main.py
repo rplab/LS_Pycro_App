@@ -189,19 +189,20 @@ class Acquisition(threading.Thread):
 
 
     def _end_acquisition_video(self):
-        for fish_num, fish in enumerate(self._acq_settings.fish_list):
-            if fish.imaging_enabled:
-                region = deepcopy(fish.region_list[0])
-                region.video_enabled = True
-                region.video_exposure = 30
-                region.video_num_frames = 125
-                region.video_channel_list = [BF_CHANNEL]
-                Stage.move_stage(region.x_pos, region.y_pos, region.z_pos)
-                acq_directory = deepcopy(self._acq_directory)
-                acq_directory.root = f"{acq_directory.root}/end_videos"
-                acq_directory.set_fish_num(fish_num)
-                acq_directory.set_region_num(0)
-                acq_directory.set_time_point(0)
-                video = Video(region, self._acq_settings, self._abort_flag, acq_directory)
-                for update_message in video.run():
-                    pass
+        if self._adv_settings.end_videos_enabled:
+            for fish_num, fish in enumerate(self._acq_settings.fish_list):
+                if fish.imaging_enabled:
+                    region = deepcopy(fish.region_list[0])
+                    region.video_enabled = True
+                    region.video_exposure = self._adv_settings.end_videos_exposure
+                    region.video_num_frames = self._adv_settings.end_videos_num_frames
+                    region.video_channel_list = [BF_CHANNEL]
+                    Stage.move_stage(region.x_pos, region.y_pos, region.z_pos)
+                    acq_directory = deepcopy(self._acq_directory)
+                    acq_directory.root = f"{acq_directory.root}/end_videos"
+                    acq_directory.set_fish_num(fish_num)
+                    acq_directory.set_region_num(0)
+                    acq_directory.set_time_point(0)
+                    video = Video(region, self._acq_settings, self._abort_flag, acq_directory)
+                    for update_message in video.run():
+                        pass

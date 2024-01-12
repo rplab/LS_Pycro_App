@@ -156,6 +156,7 @@ class AcqController(object):
         self.regions_dialog.snap_exposure_line_edit.setValidator(validator)
         self.regions_dialog.video_exposure_line_edit.setValidator(validator)
         self._adv_settings_dialog.z_stack_exposure_line_edit.setValidator(validator)
+        self._adv_settings_dialog.end_videos_exposure_line_edit.setValidator(validator)
     
     def _connect_signals(self):
         # Initialize AcquisitionRegionsDialog event handlers. Organized by where they show up in the GUI.
@@ -246,9 +247,6 @@ class AcqController(object):
         self._acq_settings_dialog.total_images_line_edit.setEnabled(False)
         self._acq_settings_dialog.memory_line_edit.setEnabled(False)
 
-        #Default should be disabled since application sets exposure time based on stage speed
-        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(False)
-
         #custom exposure should always be allowed on WIL and lsrm isn't supported.
         is_wil = microscope == MicroscopeConfig.WILLAMETTE
         self._adv_settings_dialog.custom_exposure_check_box.setVisible(not is_wil)
@@ -321,6 +319,7 @@ class AcqController(object):
         self._update_adv_video_widgets()
         self.update_acq_order_widgets()
         self._update_adv_backup_directory_widgets()
+        self._update_end_videos_widgets()
 
     # update_adv_settings_dialog helpers
     def _update_adv_z_stack_widgets(self):
@@ -339,6 +338,11 @@ class AcqController(object):
         self._adv_settings_dialog.backup_directory_browse_button.setEnabled(self._adv_settings.backup_directory_enabled)
         self._adv_settings_dialog.backup_directory_line_edit.setEnabled(self._adv_settings.backup_directory_enabled)
         self._adv_settings_dialog.backup_directory_line_edit.setText(self._adv_settings.backup_directory)
+
+    def _update_end_videos_widgets(self):
+        self._adv_settings_dialog.end_videos_check_box.setChecked(self._adv_settings.end_videos_enabled)
+        self._adv_settings_dialog.end_videos_num_frames.setEnabled(self._adv_settings.end_videos_enabled)
+        self._adv_settings_dialog.end_videos_exposure_line_edit.setEnabled(self._adv_settings.end_videos_enabled)
 
     def _update_regions_dialog(self):
         """

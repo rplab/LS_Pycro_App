@@ -55,9 +55,10 @@ class AdvSettings():
         Will only be used if backup_directory_enabled is True.
     """
     def __init__(self):
-        self._z_stack_exposure: float = 33
+        self._z_stack_exposure: float = 33.
         self._z_stack_stage_speed: int = 30
         self._spectral_z_stack_enabled: bool = False
+        self._end_videos_exposure = 20.
         self.speed_list: list[int] = self.get_speed_list()
         self.spectral_video_enabled: bool = False
         self.lsrm_enabled: bool = False
@@ -65,6 +66,8 @@ class AdvSettings():
         self.acq_order = AcqOrder.TIME_SAMP
         self.backup_directory_enabled: bool = False
         self.backup_directory: str = "D:/"
+        self.end_videos_enabled: bool = False
+        self.end_videos_num_frames: int = 0
     
     @property
     def z_stack_exposure(self):
@@ -91,7 +94,7 @@ class AdvSettings():
                 max_exposure = np.floor(1/(self._z_stack_stage_speed*constants.UM_TO_MM))
                 self._z_stack_exposure = round(general_functions.value_in_range(value, Camera.MIN_EXPOSURE, max_exposure), 3)
             else:
-                self._z_stack_exposure = max(value, Camera.MIN_EXPOSURE)
+                self._z_stack_exposure =general_functions.value_in_range(value, Camera.MIN_EXPOSURE, Camera.MAX_EXPOSURE)
                 
     @property
     def edge_trigger_enabled(self):
@@ -120,6 +123,14 @@ class AdvSettings():
     def z_stack_stage_speed(self, value):
         self._z_stack_stage_speed = value
         self.z_stack_exposure = self._z_stack_exposure
+
+    @property
+    def end_videos_exposure(self):
+        return self._end_videos_exposure
+    
+    @end_videos_exposure.setter
+    def end_videos_exposure(self, value):
+        self._end_videos_exposure = general_functions.value_in_range(value, Camera.MIN_EXPOSURE, Camera.MAX_EXPOSURE)
 
     def get_speed_list(self):
         speed_list = [15, 30]
