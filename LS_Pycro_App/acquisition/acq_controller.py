@@ -306,7 +306,10 @@ class AcqController(object):
     def _update_memory_widgets(self):
         if self._adv_settings.acq_order == AcqOrder.TIME_SAMP:
             self._acq_settings_dialog.num_images_per_line_edit.setText(str(self._acq_settings.images_per_time_point))
-            self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
+            num_fish = len([fish for fish in self._acq_settings.fish_list if fish.imaging_enabled])
+            end_video_images = num_fish*self._adv_settings.end_videos_num_frames
+            total_images = self._acq_settings.total_num_images + end_video_images
+            self._acq_settings_dialog.total_images_line_edit.setText(str(total_images))
         elif self._adv_settings.acq_order == AcqOrder.SAMP_TIME:
             # NA because different fish have different number of images
             self._acq_settings_dialog.num_images_per_line_edit.setText("N/A")
