@@ -422,7 +422,7 @@
     <string>Enable End Videos</string>
    </property>
   </widget>
-  <widget class="QLabel" name="end_video_exp_unit_label">
+  <widget class="QLabel" name="end_videos_exp_unit_label">
    <property name="geometry">
     <rect>
      <x>270</x>
@@ -438,7 +438,7 @@
     <set>Qt::AlignCenter</set>
    </property>
   </widget>
-  <widget class="QLabel" name="end_video_exposure_label">
+  <widget class="QLabel" name="end_videos_exposure_label">
    <property name="geometry">
     <rect>
      <x>130</x>
@@ -451,7 +451,7 @@
     <string>Exposure Time:</string>
    </property>
   </widget>
-  <widget class="QLineEdit" name="end_video_exposure_line_edit">
+  <widget class="QLineEdit" name="end_videos_exposure_line_edit">
    <property name="geometry">
     <rect>
      <x>210</x>
@@ -464,7 +464,7 @@
     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Exposure time for use in Z-stack. &lt;/p&gt;&lt;p&gt;If spectral Z-stack is enabled, exposure time is only limited by camera's min/max exposure time. &lt;/p&gt;&lt;p&gt;If both spectral Z-stack and custom exposure are disabled, exposure time will be ~ 1/stage_speed&lt;/p&gt;&lt;p&gt;If spectral Z-stack is disabaled but custom exposure is enabled, allowed exposure time is determined by camera's allowed exposure in external trigger mode. See Hamamatsu documentation for more details.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </property>
   </widget>
-  <widget class="QLabel" name="end_video_num_frames_label">
+  <widget class="QLabel" name="end_videos_num_frames_label">
    <property name="geometry">
     <rect>
      <x>110</x>
@@ -477,7 +477,7 @@
     <string>Number of Frames:</string>
    </property>
   </widget>
-  <widget class="QLineEdit" name="end_video_num_frames_line_edit">
+  <widget class="QLineEdit" name="end_videos_num_frames_line_edit">
    <property name="geometry">
     <rect>
      <x>210</x>

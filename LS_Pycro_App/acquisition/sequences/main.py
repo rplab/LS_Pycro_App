@@ -61,7 +61,7 @@ class Acquisition(threading.Thread):
         self._logger = logging.getLogger(self.__class__.__name__)
         #Reason for this deepcopy is so if settings are changed in the GUI while an acquisition is running,
         #it won't change the settings in the middle of the acquisition
-        self._acq_settings = acq_settings
+        self._acq_settings = deepcopy(acq_settings)
         self._adv_settings = self._acq_settings.adv_settings
         self._acq_directory = AcqDirectory(self._acq_settings.directory)
         self._abort_dialog = AbortDialog()
@@ -97,8 +97,7 @@ class Acquisition(threading.Thread):
             self._write_acquisition_notes()
             self._abort_flag.abort = False
             self._start_acquisition()
-            self._status_update("taking end videos...")
-            self._end_acquisition_video()
+            self._acquire_end_videos()
         except exceptions.AbortAcquisitionException:
             self._abort_acquisition(self._abort_flag.abort)
         except:
@@ -188,8 +187,9 @@ class Acquisition(threading.Thread):
         Stage.reset_joystick()
 
 
-    def _end_acquisition_video(self):
+    def _acquire_end_videos(self):
         if self._adv_settings.end_videos_enabled:
+            self._status_update("taking end videos...")
             for fish_num, fish in enumerate(self._acq_settings.fish_list):
                 if fish.imaging_enabled:
                     region = deepcopy(fish.region_list[0])

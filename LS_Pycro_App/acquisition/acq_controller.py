@@ -148,6 +148,7 @@ class AcqController(object):
         self.regions_dialog.step_size_line_edit.setValidator(validator)
         self.regions_dialog.video_num_frames_line_edit.setValidator(validator)
         self._acq_settings_dialog.num_time_points_line_edit.setValidator(validator)
+        self._adv_settings_dialog.end_videos_num_frames_line_edit.setValidator(validator)
 
         validator = QtGui.QDoubleValidator()
         validator.setDecimals(AcqController.NUM_DECIMAL_PLACES)
@@ -237,6 +238,10 @@ class AcqController(object):
         self._adv_settings_dialog.backup_directory_check_box.clicked.connect(self._backup_directory_check_clicked)
         self._adv_settings_dialog.backup_directory_browse_button.clicked.connect(self._second_browse_button_clicked)
         self._adv_settings_dialog.backup_directory_line_edit.textEdited.connect(self._backup_directory_line_edit_event)
+
+        self._adv_settings_dialog.end_videos_check_box.clicked.connect(self._end_videos_check_box_clicked)
+        self._adv_settings_dialog.end_videos_num_frames_line_edit.textEdited.connect(self._end_videos_num_frames_line_edit_event)
+        self._adv_settings_dialog.end_videos_exposure_line_edit.textEdited.connect(self._end_videos_exposure_line_edit)
 
     def _set_additional_widget_settings(self):
         self._acq_settings_dialog.channel_order_list_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
@@ -341,8 +346,10 @@ class AcqController(object):
 
     def _update_end_videos_widgets(self):
         self._adv_settings_dialog.end_videos_check_box.setChecked(self._adv_settings.end_videos_enabled)
-        self._adv_settings_dialog.end_videos_num_frames.setEnabled(self._adv_settings.end_videos_enabled)
+        self._adv_settings_dialog.end_videos_num_frames_line_edit.setEnabled(self._adv_settings.end_videos_enabled)
+        self._adv_settings_dialog.end_videos_num_frames_line_edit.setText(str(self._adv_settings.end_videos_num_frames))
         self._adv_settings_dialog.end_videos_exposure_line_edit.setEnabled(self._adv_settings.end_videos_enabled)
+        self._adv_settings_dialog.end_videos_exposure_line_edit.setText(str(self._adv_settings.end_videos_exposure))
 
     def _update_regions_dialog(self):
         """
@@ -914,9 +921,9 @@ class AcqController(object):
         self._adv_settings.z_stack_stage_speed = float(self._adv_settings_dialog.stage_speed_combo_box.currentText())
         self._update_dialogs()
 
-    def _custom_exposure_check_box_clicked(self):
+    def _custom_exposure_check_box_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(self._adv_settings_dialog.custom_exposure_check_box.isChecked())
+        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(checked)
         self._update_dialogs()
 
     def _z_stack_exposure_line_edit_event(self, text):
@@ -952,9 +959,9 @@ class AcqController(object):
         self._acq_order_dialog.close()
         self._update_dialogs()
 
-    def _lsrm_check_box_clicked(self):
+    def _lsrm_check_box_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._adv_settings.lsrm_enabled = self._adv_settings_dialog.lsrm_check_box.isChecked()
+        self._adv_settings.lsrm_enabled = checked
         self._update_dialogs()
 
     def _video_spectral_check_clicked(self, checked):
@@ -984,3 +991,23 @@ class AcqController(object):
         self._adv_settings.backup_directory = text
         self._update_dialogs()
 
+    def _end_videos_check_box_clicked(self, checked):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        self._adv_settings.end_videos_enabled = checked
+        self._update_dialogs()
+
+    def _end_videos_num_frames_line_edit_event(self, text):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        with contextlib.suppress(ValueError):
+            if self._adv_settings_dialog.end_videos_num_frames_line_edit.hasAcceptableInput():
+                self._adv_settings.end_videos_num_frames = int(text)
+            self._update_dialogs()
+
+    def _end_videos_exposure_line_edit(self, text):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        with contextlib.suppress(ValueError):
+            if self._adv_settings_dialog.end_videos_exposure_line_edit.hasAcceptableInput():
+                self._adv_settings.end_videos_exposure = float(text)
+                self._update_region_table()
+            else:
+                self._update_dialogs()

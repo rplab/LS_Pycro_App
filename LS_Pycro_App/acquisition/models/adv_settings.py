@@ -67,7 +67,7 @@ class AdvSettings():
         self.backup_directory_enabled: bool = False
         self.backup_directory: str = "D:/"
         self.end_videos_enabled: bool = False
-        self.end_videos_num_frames: int = 0
+        self.end_videos_num_frames: int = 100
     
     @property
     def z_stack_exposure(self):
