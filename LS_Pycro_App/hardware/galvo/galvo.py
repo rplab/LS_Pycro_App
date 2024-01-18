@@ -232,6 +232,7 @@ def _reset_tasks():
     """
     closes DAQ tasks and creates new, empty tasks with the same variable names.
     """
+    global _scan_output, _cam_output
     _scan_output.close()
     _cam_output.close()
     _scan_output = nidaqmx.Task()
@@ -249,5 +250,5 @@ def exit():
     settings.dslm_offset = 0
     settings.dslm_scan_width = 0
     set_dslm_mode()
-    _scan_output.close
+    _scan_output.close()
     _cam_output.close()
