@@ -133,11 +133,11 @@ class AdvSettings():
         self._end_videos_exposure = general_functions.value_in_range(value, Camera.MIN_EXPOSURE, Camera.MAX_EXPOSURE)
 
     def get_speed_list(self):
-        speed_list = [15, 30]
+        self.speed_list = [15, 30]
         if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
             self.speed_list.append(45)
             self.speed_list.append(60)
-        return speed_list
+        return self.speed_list
             
     def write_to_config(self):
         user_config.write_class(self)
