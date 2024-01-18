@@ -30,9 +30,10 @@ API is. Will thing more about this.
 
 from PyQt5 import QtCore
 
-from LS_Pycro_App.main.views.py import MainWindow
 from LS_Pycro_App.acquisition.acq_controller import AcqController
 from LS_Pycro_App.hardware.galvo.galvo_controller import GalvoController
+from LS_Pycro_App.main.views.py import MainWindow
+from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
 
 class MainController(object):
     def __init__(self):
@@ -43,11 +44,18 @@ class MainController(object):
         #initialize main window and event handlers.
         self._main_window.regions_button.clicked.connect(self._regions_button_clicked)
         self._main_window.exit_button.clicked.connect(self._exit_button_clicked)
+        if hasattr(self._main_window, "galvo_button"):
+            self._galvo_controller = GalvoController()
+            self._main_window.galvo_button.clicked.connect(self._galvo_button_clicked)
 
         #This flag is set to disable thebuttons on the top right of the window.
         self._main_window.setWindowFlags(QtCore.Qt.WindowTitleHint)
         
         self._main_window.show()
+    
+    def _galvo_button_clicked(self):
+        self._galvo_controller.galvo_dialog.show()
+        self._galvo_controller.galvo_dialog.activateWindow()
 
     def _regions_button_clicked(self):
         self._acquisition_controller.regions_dialog.show()
@@ -56,13 +64,5 @@ class MainController(object):
     def _exit_button_clicked(self):
         quit()
 
-
-class KlaMainController(MainController):
-    def __init__(self):
-        super().__init__()
-        self._galvo_controller = GalvoController()
-        self._main_window.galvo_button.clicked.connect(self._galvo_button_clicked)
-
-    def _galvo_button_clicked(self):
-        self._galvo_controller.galvo_dialog.show()
-        self._galvo_controller.galvo_dialog.activateWindow()
+from LS_Pycro_App.acquisition.acq_controller import AcqController
+from LS_Pycro_App.hardware.galvo.galvo_controller import GalvoController
