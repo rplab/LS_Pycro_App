@@ -485,9 +485,6 @@ class AcqSettings():
 
     #### append_blank_fish()
         Appends new Fish() object to self.fish_list
-
-    #### update_num_images()
-        Calculates number of images to be acquired during acquisition and sets self.num_imagesto said number.
     """
     NOT_CONFIG_PROPS = ["fish_list", "adv_settings"]
     core_channel_list: list[str] = pycro.get_channel_list()

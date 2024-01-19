@@ -13,17 +13,55 @@ from LS_Pycro_App.acquisition.sequences.imaging import ImagingSequence, Snap, Vi
 
 
 class AcquisitionOrder(ABC):
-    # Reason for this is that disks write slower when they're full, which will cause timing
-    # issues between timepoints.
-    PERCENT_DISK_LIMIT = 0.8
+    """
+    Abstract class that controls the order of region, fish, and time points during image acquisition.
+    Moves stage to region for imaging and then calls run() in imaging sequences to acquire images.
+    Also sets region, fish, and time point in acq_directory so that save directory is initialized correctly. 
+    Child classes should move to correct region and then call _run_imaging_sequences() to acquire images.
+    
+    ### Constructor Parameters:
+
+    acq_settings: AcqSettings
+        acquisition settings used in acquisition
+
+    acq_dialog: AcqDialog
+        acquisition dialog to provide updates during acquisition
+        
+    abort_flag: exceptions.AbortFlag
+        flag to tell if user has aborted acquisition
+
+    acq_directory: AcqDirectory
+        acquisition directory which is updated throughout acquisition to match time point, fish and region.
+
+    ### Child Classes:
+
+    TimeSampAcquisition
+        The default acquisition order. It takes does a full acquisition of all fish for each time point.
+
+    SampTimeAcquisition
+        Performs a full time series for each fish. Ie, if there are two fish in
+        AcqSettings.fish_list and timepoints are enabled, a full time series will be performed for the
+        first fish, and then once concluded, a full time series of the second fish will be acquired.
+
+    PosTimeAcquisition
+        Ie, if there is one fish with two regions AcqSettings.fish_list and timepoints are enabled, 
+        a full time series will be performed for the first region, and then once concluded, a full 
+        time series of the second region will be acquired.
+
+
+    Abstract Methods:
+
+    #### run()
+        starts acquisition
+    """
     # delay is pretty arbitrary. At the very least should be less than a second
     # to avoid inconsistent intervals between timepoints.
-    TIME_UPDATE_DELAY_S = .01
+    TIME_DIALOG_UPDATE_DELAY_S = .01
 
     @abstractmethod
     def run(self):
         """
-        starts acquisition.
+        starts acquisition
         """
         pass
 
@@ -38,6 +76,7 @@ class AcquisitionOrder(ABC):
         self._acq_directory = acq_directory
 
     def _abort_check(self):
+        #abort_check is called throughout acquisitions to check if the user has aborted the acquisition.
         if self._abort_flag.abort:
             raise exceptions.AbortAcquisitionException
         
@@ -67,16 +106,15 @@ class AcquisitionOrder(ABC):
     def _wait_for_next_time_point(self, start_time):
         while self._get_time_remaining(start_time) > 0:
             self._abort_check()
-            self.update_time_left(start_time)
-            time.sleep(self.TIME_UPDATE_DELAY_S)
+            self._update_time_left(start_time)
+            time.sleep(self.TIME_DIALOG_UPDATE_DELAY_S)
 
     #run helpers
-    def _acquire_fish_regions(self, fish: Fish):
+    def _acquire_regions(self, fish: Fish):
         for region_num, region in enumerate(fish.region_list):
             self._abort_check()
             if region.imaging_enabled:
                 self._update_region_num(region_num)
-
                 self._move_to_region(region)
                 self._run_imaging_sequences(region)
 
@@ -130,7 +168,8 @@ class AcquisitionOrder(ABC):
             self._acq_directory.set_root(self._adv_settings.backup_directory)
 
     def _is_enough_space(self, fish: Fish) -> bool:
-        return dir_functions.is_enough_space(self._get_size_mb_of_fish(fish), self.PERCENT_DISK_LIMIT, self._acq_directory.root)
+        return dir_functions.is_enough_space(
+            self._get_size_mb_of_fish(fish), self._adv_settings.backup_directory_limit, self._acq_directory.root)
 
     def _get_size_mb_of_fish(self, fish: Fish) -> float:
         return fish.num_images*self._acq_settings.image_size_mb
@@ -145,7 +184,7 @@ class AcquisitionOrder(ABC):
     def _update_time_point_label(self, time_point: int):
         self._acq_dialog.time_point_label.setText(f"Time Point {time_point + 1}")
 
-    def update_time_left(self, start_time):
+    def _update_time_left(self, start_time):
         minutes_left, seconds_left = self._get_minutes_left(start_time)
         update_message = "next time point:"
         if minutes_left:
@@ -177,6 +216,15 @@ class AcquisitionOrder(ABC):
 
 
 class TimeSampAcquisition(AcquisitionOrder):
+    """
+    TimeSampAcquisition is the default acquisition order. It takes does a full acquisition of all fish
+    for each time point.
+
+    Public Methods:
+
+    #### run()
+        runs acquisition
+    """
     def run(self):
         start_region = self._get_start_region(0)[0]
         if not start_region:
@@ -202,10 +250,20 @@ class TimeSampAcquisition(AcquisitionOrder):
             if fish.imaging_enabled:
                 self._update_directory(fish)
                 self._update_fish_num(fish_num)
-                self._acquire_fish_regions(fish)
+                self._acquire_regions(fish)
 
 
 class SampTimeAcquisition(AcquisitionOrder):
+    """
+    SampTimeAcquisition performs a full time series for each fish. Ie, if there are two fish in
+    AcqSettings.fish_list and timepoints are enabled, a full time series will be performed for the
+    first fish, and then once concluded, a full time series of the second fish will be acquired.
+
+    Public Methods:
+
+    #### run()
+        runs acquisition
+    """
     def run(self):
         if not self._get_start_region(0)[0]:
             raise exceptions.AbortAcquisitionException("No valid region for imaging")
@@ -229,7 +287,7 @@ class SampTimeAcquisition(AcquisitionOrder):
         for time_point in range(self._acq_settings.num_time_points):
             start_time = self._get_time()
             self._update_time_point_num(time_point)
-            self._acquire_fish_regions(fish)
+            self._acquire_regions(fish)
             if self._is_time_point_left(time_point):
                 self._move_to_region(start_region)
                 self._wait_for_next_time_point(start_time)
@@ -238,10 +296,33 @@ class SampTimeAcquisition(AcquisitionOrder):
 
 
 class PosTimeAcquisition(AcquisitionOrder):
+    """
+    PosTimeAcquisition performs a full time series for each region. Ie, if there is one fish with two 
+    regions AcqSettings.fish_list and timepoints are enabled, a full time series will be performed for 
+    the first region, and then once concluded, a full time series of the second region will be acquired.
+
+    Public Methods:
+
+    #### run()
+        runs acquisition
+    """
     def run(self):
         if not self._get_start_region(0)[0]:
             raise exceptions.AbortAcquisitionException("No valid region for imaging")
-        self._acquire_regions()
+        self._acquire_fish()
+
+    def _acquire_fish(self):
+        for fish in self._acq_settings.fish_list:
+            self._acquire_regions(fish)
+
+    def _acquire_regions(self, fish: Fish):
+        for region_num, region in enumerate(fish.region_list):
+            self._abort_check()
+            if region.imaging_enabled:
+                self._update_fish_num(self._acq_settings.fish_list.index(fish))
+                self._update_region_num(region_num)
+                self._move_to_region(region)
+                self._acquire_time_points(region)
 
     def _acquire_time_points(self, region: Region):
         for time_point in range(self._acq_settings.num_time_points):
@@ -253,13 +334,3 @@ class PosTimeAcquisition(AcquisitionOrder):
                 self._wait_for_next_time_point(start_time)
             else:
                 break
-
-    def _acquire_regions(self):
-        for fish_num, fish in enumerate(self._acq_settings.fish_list):
-            for region_num, region in enumerate(fish.region_list):
-                self._abort_check()
-                if region.imaging_enabled:
-                    self._update_fish_num(fish_num)
-                    self._update_region_num(region_num)
-                    self._move_to_region(region)
-                    self._acquire_time_points(region)

@@ -80,7 +80,7 @@ class Acquisition(threading.Thread):
         This method is called when Acquisition.start() is called and runs in a 
         separate thread.
 
-        There are currently two acquisitions orders which are chosen with the
+        There are currently tbree acquisitions orders which are chosen with the
         AcquisitionOrder Enum class:
 
         TIME_SAMP - Normal time series acquisition. Each time point consists of imaging
@@ -88,11 +88,14 @@ class Acquisition(threading.Thread):
         and repeat.
         
         SAMP_TIME - An entire time series will be executed for the first sample, then 
-        another time series for the next sample, and so on. 
+        another time series for the next sample, and so on.
+
+        POS_TIME - An entire time series will be executed for the first region, then 
+        another time series for the next region, and so on.
         """
         try:
             self._status_update("Initializing Acquisition")
-            self._init_mm_settings()
+            self._init_mm()
             self._init_galvo()
             self._write_acquisition_notes()
             self._abort_flag.abort = False
@@ -104,11 +107,11 @@ class Acquisition(threading.Thread):
             self._logger.exception("exception raised during acquisition")
             self._abort_acquisition(self._abort_flag.abort)
         else:
-            self.hardware_reset()
+            self._hardware_reset()
             studio.app().refresh_gui()
             self._status_update("Your acquisition was successful!")
 
-    def _init_mm_settings(self):
+    def _init_mm(self):
         core.stop_sequence_acquisition()
         core.clear_circular_buffer()
         core.set_shutter_open(False)
@@ -173,17 +176,16 @@ class Acquisition(threading.Thread):
             second_message = "Acquisition Failed. Check Logs."
 
         self._status_update(first_message)
-        self.hardware_reset()
+        self._hardware_reset()
         self._status_update(second_message)
 
-    def hardware_reset(self):
-        try:
-            core.stop_sequence_acquisition()
-        except:
-            pass
-        core.clear_circular_buffer()
+    def _hardware_reset(self):
+        Plc.set_continuous_pulses(30)
+        core.stop_sequence_acquisition()
         Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
         Camera.set_burst_mode()
+        Plc.init_pulse_mode()
+        core.clear_circular_buffer()
         Stage.reset_joystick()
 
 

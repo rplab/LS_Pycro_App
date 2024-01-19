@@ -19,10 +19,7 @@ with contextlib.suppress(exceptions.HardwareException):
 
 #Initialize stage to default state.
 with contextlib.suppress(exceptions.HardwareException):
-    Stage.set_x_stage_speed(Stage._DEFAULT_STAGE_SPEED_UM_PER_S)
-    Stage.set_y_stage_speed(Stage._DEFAULT_STAGE_SPEED_UM_PER_S)
-    Stage.set_z_stage_speed(Stage._DEFAULT_STAGE_SPEED_UM_PER_S)
-    Stage.reset_joystick()
+    Stage.init()
 
 #Initializes plc to default state.
 with contextlib.suppress(exceptions.HardwareException):

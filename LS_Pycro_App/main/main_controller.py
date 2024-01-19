@@ -21,8 +21,8 @@ When I started this job, my coding background was not great and the code that wa
 just a bit of knowledge of microscope automation and object-oriented programming could figure out. 
 
 Future Changes:
-- I've done almost no formatting. Probably should format everything to be in accordance with PEP 8. Currently using 
-120 line length limit, which I think is reasonable. 80 seems like way too little.
+- Probably should format everything to be in accordance with PEP 8. Currently using 120 line length limit, which I think is reasonable
+with PyQt5. 80 seems like way too little.
 
 - All the controllers are so boilerplatey. Not sure if there's an elegant way around this just due to how the PyQt5
 API is. Will thing more about this.
@@ -40,13 +40,13 @@ class MainController(object):
         #Same instances of studio, core, mm_hardware_commands, and spim_commands used throughout
         self._main_window = MainWindow()
         self._acquisition_controller = AcqController()
+        if microscope == MicroscopeConfig.KLAMATH:
+            self._galvo_controller = GalvoController()
+            self._main_window.galvo_button.clicked.connect(self._galvo_button_clicked)
         
         #initialize main window and event handlers.
         self._main_window.regions_button.clicked.connect(self._regions_button_clicked)
         self._main_window.exit_button.clicked.connect(self._exit_button_clicked)
-        if hasattr(self._main_window, "galvo_button"):
-            self._galvo_controller = GalvoController()
-            self._main_window.galvo_button.clicked.connect(self._galvo_button_clicked)
 
         #This flag is set to disable thebuttons on the top right of the window.
         self._main_window.setWindowFlags(QtCore.Qt.WindowTitleHint)
@@ -63,6 +63,3 @@ class MainController(object):
 
     def _exit_button_clicked(self):
         quit()
-
-from LS_Pycro_App.acquisition.acq_controller import AcqController
-from LS_Pycro_App.hardware.galvo.galvo_controller import GalvoController

@@ -98,6 +98,13 @@ class Stage(ABC):
         cls._logger.info(f"Serial command {command} sent to stage")
 
     @classmethod
+    def init(cls):
+        cls.set_x_stage_speed(cls._DEFAULT_STAGE_SPEED_UM_PER_S)
+        cls.set_y_stage_speed(cls._DEFAULT_STAGE_SPEED_UM_PER_S)
+        cls.set_z_stage_speed(cls._DEFAULT_STAGE_SPEED_UM_PER_S)
+        cls.reset_joystick()
+
+    @classmethod
     @handle_exception
     def set_x_stage_speed(cls, speed):
         """

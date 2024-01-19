@@ -5,7 +5,7 @@ import sys
 from PyQt5 import QtGui
 
 from LS_Pycro_App.hardware import Galvo, Camera, Plc, exceptions
-from LS_Pycro_App.hardware.galvo.views import GalvoDialog
+from LS_Pycro_App.hardware.galvo.views.py import GalvoDialog
 from LS_Pycro_App.utils import general_functions
 
 
@@ -226,13 +226,13 @@ class GalvoController(object):
     def _scanning_check_box_stage_changed(self):
         # If checked, starts laser scanning
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._set_scanning_mode()
         if self.galvo_dialog.scanning_check_box.isChecked():
             if self._is_lsrm:
                 Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
         elif self._is_lsrm:
             Camera.set_burst_mode()
             Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
+        self._set_scanning_mode()
 
     def _offset_big_neg_button_clicked(self):
         # Since offset line edit acts as both offset for continuous_scan and
