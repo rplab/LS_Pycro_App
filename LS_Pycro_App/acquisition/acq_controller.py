@@ -12,6 +12,7 @@ from LS_Pycro_App.acquisition.models.adv_settings import AcqOrder
 from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
 from LS_Pycro_App.acquisition.views.py import AcqRegionsDialog, AcqOrderDialog, AcqSettingsDialog, AdvSettingsDialog, BrowseDialog
 from LS_Pycro_App.hardware import Stage, Camera
+from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
 from LS_Pycro_App.utils import constants, exceptions
 
 
@@ -129,6 +130,7 @@ class AcqController(object):
         self.regions_dialog.step_size_line_edit.setValidator(validator)
         self.regions_dialog.video_num_frames_line_edit.setValidator(validator)
         self._acq_settings_dialog.num_time_points_line_edit.setValidator(validator)
+        self._adv_settings_dialog.end_videos_num_frames_line_edit.setValidator(validator)
 
         validator = QtGui.QDoubleValidator()
         validator.setDecimals(AcqController.NUM_DECIMAL_PLACES)
@@ -137,6 +139,7 @@ class AcqController(object):
         self.regions_dialog.snap_exposure_line_edit.setValidator(validator)
         self.regions_dialog.video_exposure_line_edit.setValidator(validator)
         self._adv_settings_dialog.z_stack_exposure_line_edit.setValidator(validator)
+        self._adv_settings_dialog.end_videos_exposure_line_edit.setValidator(validator)
     
     def _connect_signals(self):
         # Initialize AcquisitionRegionsDialog event handlers. Organized by where they show up in the GUI.
@@ -198,27 +201,29 @@ class AcqController(object):
         self._acq_settings_dialog.save_path_line_edit.textEdited.connect(self._save_path_line_edit_event)
         self._acq_settings_dialog.researcher_line_edit.textEdited.connect(self._researcher_line_edit_event)
         self._acq_settings_dialog.start_acquisition_button.clicked.connect(self._start_acquisition_button_clicked)
-        self._acq_settings_dialog.show_acquisition_dialog_button.clicked.connect(
-            self._show_acquisition_dialog_button_clicked)
+        self._acq_settings_dialog.show_acquisition_dialog_button.clicked.connect(self._show_acquisition_dialog_button_clicked)
 
         # Initialize AdvancedSettingsDialog event handlers
         self._adv_settings_dialog.z_stack_spectral_check_box.clicked.connect(self._z_stack_spectral_check_clicked)
         self._adv_settings_dialog.stage_speed_combo_box.activated.connect(self._stage_speed_combo_box_clicked)
+        self._adv_settings_dialog.custom_exposure_check_box.clicked.connect(self._custom_exposure_check_box_clicked)
         self._adv_settings_dialog.z_stack_exposure_line_edit.textEdited.connect(self._z_stack_exposure_line_edit_event)
-
-        self._adv_settings_dialog.video_spectral_check_box.clicked.connect(self._video_spectral_check_clicked)
 
         self._adv_settings_dialog.acq_order_combo_box.activated.connect(self._acq_order_combo_box_clicked)
         self._acq_order_dialog.yes_button.clicked.connect(self._acq_order_yes_button_clicked)
         self._acq_order_dialog.cancel_button.clicked.connect(self._acquisition_order_cancel_button_clicked)
 
+        self._adv_settings_dialog.lsrm_check_box.clicked.connect(self._lsrm_check_box_clicked)
+
+        self._adv_settings_dialog.video_spectral_check_box.clicked.connect(self._video_spectral_check_clicked)
+
         self._adv_settings_dialog.backup_directory_check_box.clicked.connect(self._backup_directory_check_clicked)
         self._adv_settings_dialog.backup_directory_browse_button.clicked.connect(self._second_browse_button_clicked)
         self._adv_settings_dialog.backup_directory_line_edit.textEdited.connect(self._backup_directory_line_edit_event)
 
-        if microscope == MicroscopeConfig.KLAMATH:
-            self._adv_settings_dialog.lsrm_check_box.clicked.connect(self._lsrm_check_box_clicked)
-            self._adv_settings_dialog.custom_exposure_check_box.clicked.connect(self._custom_exposure_check_box_clicked)
+        self._adv_settings_dialog.end_videos_check_box.clicked.connect(self._end_videos_check_box_clicked)
+        self._adv_settings_dialog.end_videos_num_frames_line_edit.textEdited.connect(self._end_videos_num_frames_line_edit_event)
+        self._adv_settings_dialog.end_videos_exposure_line_edit.textEdited.connect(self._end_videos_exposure_line_edit)
 
     def _set_additional_widget_settings(self):
         self._acq_settings_dialog.channel_order_list_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
@@ -228,6 +233,12 @@ class AcqController(object):
         self._acq_settings_dialog.num_images_per_line_edit.setEnabled(False)
         self._acq_settings_dialog.total_images_line_edit.setEnabled(False)
         self._acq_settings_dialog.memory_line_edit.setEnabled(False)
+
+        #custom exposure should always be allowed on WIL and lsrm isn't supported.
+        is_wil = microscope == MicroscopeConfig.WILLAMETTE
+        self._adv_settings_dialog.custom_exposure_check_box.setVisible(not is_wil)
+        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(is_wil)
+        self._adv_settings_dialog.lsrm_check_box.setEnabled(not is_wil)
 
     def _update_dialogs(self):
         """
@@ -277,7 +288,10 @@ class AcqController(object):
     def _update_memory_widgets(self):
         if self._adv_settings.acq_order == AcqOrder.TIME_SAMP:
             self._acq_settings_dialog.num_images_per_line_edit.setText(str(self._acq_settings.images_per_time_point))
-            self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
+            num_fish = len([fish for fish in self._acq_settings.fish_list if fish.imaging_enabled])
+            end_video_images = num_fish*self._adv_settings.end_videos_num_frames
+            total_images = self._acq_settings.total_num_images + end_video_images
+            self._acq_settings_dialog.total_images_line_edit.setText(str(total_images))
         elif self._adv_settings.acq_order == AcqOrder.SAMP_TIME:
             # NA because different fish have different number of images
             self._acq_settings_dialog.num_images_per_line_edit.setText("N/A")
@@ -294,6 +308,7 @@ class AcqController(object):
         self._update_adv_video_widgets()
         self._update_acq_order_widgets()
         self._update_adv_backup_directory_widgets()
+        self._update_end_videos_widgets()
 
     # update_adv_settings_dialog helpers
     def _update_adv_z_stack_widgets(self):
@@ -313,6 +328,13 @@ class AcqController(object):
         self._adv_settings_dialog.backup_directory_browse_button.setEnabled(self._adv_settings.backup_directory_enabled)
         self._adv_settings_dialog.backup_directory_line_edit.setEnabled(self._adv_settings.backup_directory_enabled)
         self._adv_settings_dialog.backup_directory_line_edit.setText(self._adv_settings.backup_directory)
+
+    def _update_end_videos_widgets(self):
+        self._adv_settings_dialog.end_videos_check_box.setChecked(self._adv_settings.end_videos_enabled)
+        self._adv_settings_dialog.end_videos_num_frames_line_edit.setEnabled(self._adv_settings.end_videos_enabled)
+        self._adv_settings_dialog.end_videos_num_frames_line_edit.setText(str(self._adv_settings.end_videos_num_frames))
+        self._adv_settings_dialog.end_videos_exposure_line_edit.setEnabled(self._adv_settings.end_videos_enabled)
+        self._adv_settings_dialog.end_videos_exposure_line_edit.setText(str(self._adv_settings.end_videos_exposure))
 
     def _update_regions_dialog(self):
         """
@@ -703,16 +725,19 @@ class AcqController(object):
         # Changes fish type text for current fish
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._fish.fish_type = text
+        self._acq_settings.write_to_config()
 
     def _age_line_edit_event(self, text):
         # Changes fish age text for current fish
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._fish.age = text
+        self._acq_settings.write_to_config()
 
     def _inoculum_line_edit_event(self, text):
         # Changes inoculum type text for current fish
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._fish.inoculum = text
+        self._acq_settings.write_to_config()
 
     def _add_notes_text_edit_event(self):
         # For now, removed logging from this event. Currently is triggered off of textChanged
@@ -720,6 +745,7 @@ class AcqController(object):
         # floods the logs. Couldn't find a different signal for QT Text Edit.
         text = self.regions_dialog.add_notes_text_edit.toPlainText()
         self._fish.add_notes = text
+        self._acq_settings.write_to_config()
 
     def _start_z_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
@@ -880,6 +906,13 @@ class AcqController(object):
         self._adv_settings.z_stack_stage_speed = float(self._adv_settings_dialog.stage_speed_combo_box.currentText())
         self._update_dialogs()
 
+    def _custom_exposure_check_box_clicked(self, checked):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(checked)
+        if microscope == MicroscopeConfig.KLAMATH:
+            self._adv_settings.edge_trigger_enabled = checked
+        self._update_dialogs()
+
     def _z_stack_exposure_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
@@ -892,11 +925,6 @@ class AcqController(object):
                     self._update_dialogs()
             else:
                 self._update_dialogs()
-
-    def _video_spectral_check_clicked(self, checked):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._adv_settings.spectral_video_enabled = checked
-        self._update_dialogs()
 
     def _acq_order_combo_box_clicked(self):
         # Changes acquisition order. If SAMP_TIME is selected, prompts user to make sure
@@ -916,6 +944,16 @@ class AcqController(object):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings_dialog.acq_order_combo_box.setCurrentText(self._adv_settings.acq_order.name)
         self._acq_order_dialog.close()
+        self._update_dialogs()
+
+    def _lsrm_check_box_clicked(self, checked):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        self._adv_settings.lsrm_enabled = checked
+        self._update_dialogs()
+
+    def _video_spectral_check_clicked(self, checked):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        self._adv_settings.spectral_video_enabled = checked
         self._update_dialogs()
 
     def _backup_directory_check_clicked(self):
@@ -940,15 +978,23 @@ class AcqController(object):
         self._adv_settings.backup_directory = text
         self._update_dialogs()
 
-    if microscope == MicroscopeConfig.KLAMATH:
-        def _lsrm_check_box_clicked(self):
-            self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-            self._adv_settings.lsrm_enabled = self._adv_settings_dialog.lsrm_check_box.isChecked()
-            self._update_dialogs()
-        
-        def _custom_exposure_check_box_clicked(self):
-            self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-            self._adv_settings.edge_trigger_enabled = self._adv_settings_dialog.custom_exposure_check_box.isChecked()
+    def _end_videos_check_box_clicked(self, checked):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        self._adv_settings.end_videos_enabled = checked
+        self._update_dialogs()
+
+    def _end_videos_num_frames_line_edit_event(self, text):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        with contextlib.suppress(ValueError):
+            if self._adv_settings_dialog.end_videos_num_frames_line_edit.hasAcceptableInput():
+                self._adv_settings.end_videos_num_frames = int(text)
             self._update_dialogs()
 
-
+    def _end_videos_exposure_line_edit(self, text):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        with contextlib.suppress(ValueError):
+            if self._adv_settings_dialog.end_videos_exposure_line_edit.hasAcceptableInput():
+                self._adv_settings.end_videos_exposure = float(text)
+                self._update_region_table()
+            else:
+                self._update_dialogs()

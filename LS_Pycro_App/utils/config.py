@@ -50,7 +50,7 @@ class Config(configparser.ConfigParser):
             self.read(file_path)
             self._logger.info("Config file read")
     
-    def write_class(self, class_instance, section: str = None):
+    def write_class(self, class_instance: object, section: str = None):
         """
         Writes section to Config with instance attributes of class_instance.
         If section = None, section name is assumed to be the name taken from
@@ -59,19 +59,27 @@ class Config(configparser.ConfigParser):
         section = section or class_instance.__class__.__name__
         if not self.has_section(section):
             self.add_section(section)
-        #This just iterates through the names of the instance attributes in acq_settings
-        for key in vars(class_instance).keys():
-            value = str(vars(class_instance)[key])
-            #key is stripped so that config file doesn't have leading underscores.
-            #mainly for consistency but also useful for calling property setter.
-            option = key.strip("_")
-            #NOT_CONFIG_PROPS is a list that holds names of instance attributes that
-            #shouldn't be written to config.
-            if hasattr(class_instance, "NOT_CONFIG_PROPS"):
-                if not option in class_instance.NOT_CONFIG_PROPS:
-                    self.set(section, option, value)
-            else:
-                self.set(section, option, value)
+        #Iterates through all class attributes that aren't dunders
+        for attr in [attr for attr in dir(class_instance) if "__" not in attr]:
+            value = None
+            class_has_attr = hasattr(class_instance.__class__, attr)
+            if class_has_attr:
+                #first checks if attr is property and grabs value if it is
+                if isinstance(getattr(class_instance.__class__, attr), property):
+                    value = str(getattr(class_instance, attr))
+            #if attr not a property, then we check for class or instance attributes. Current assumption is that
+            #an attribute that isn't callable (ie not a function) is a class or instance attribute.
+            elif not callable(getattr(class_instance, attr)):
+                value = str(getattr(class_instance, attr))
+            #value should only be set if it was set to something other than None.
+            if value is not None:
+                #NOT_CONFIG_PROPS is a list that holds names of instance attributes that shouldn't be 
+                #written to config.
+                if hasattr(class_instance, "NOT_CONFIG_PROPS"):
+                    if not attr in class_instance.NOT_CONFIG_PROPS:
+                        self.set(section, attr.strip("_"), value)
+                else:
+                    self.set(section, attr.strip("_"), value)
         self.write_config_file(self.file_path)
     
     def init_class(self, class_instance, section: str = None):
@@ -97,24 +105,25 @@ class Config(configparser.ConfigParser):
         Currently supports int, float, bool, str, and lists and dicts of these types.
         Could add more if it's necessary in the future.
         """
-        for key in vars(class_instance).keys():
+        class_dict = vars(class_instance)
+        for key in class_dict.keys():
+            #attributes are stripped when written to config, so must be stripped when reading.
             option = key.strip("_")
             if hasattr(class_instance, "NOT_CONFIG_PROPS"):
                 if option in class_instance.NOT_CONFIG_PROPS:
                     continue
             try:
-                #attributes are stripped when written to config, so must be stripped
-                #when reading.
-                if type(vars(class_instance)[key]) == int:
-                    vars(class_instance)[key] = self.getint(section, option)
-                elif type(vars(class_instance)[key]) == float:
-                    vars(class_instance)[key] = self.getfloat(section, option)
-                elif type(vars(class_instance)[key]) == bool:
-                    vars(class_instance)[key] = self.getboolean(section, option)
-                elif type(vars(class_instance)[key]) == str:
-                    vars(class_instance)[key] = self.get(section, option)
+                attr_type = type(class_dict[key])
+                if attr_type == int:
+                    class_dict[key] = self.getint(section, option)
+                elif attr_type == float:
+                    class_dict[key] = self.getfloat(section, option)
+                elif attr_type == bool:
+                    class_dict[key] = self.getboolean(section, option)
+                elif attr_type == str:
+                    class_dict[key] = self.get(section, option)
                 else:
-                    vars(class_instance)[key] = ast.literal_eval(self.get(section, option))
+                    class_dict[key] = ast.literal_eval(self.get(section, option))
             except:
                 exception = f"{section} {key} invalid data type for config initialization"
                 self._logger.exception(exception)

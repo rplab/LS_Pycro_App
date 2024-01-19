@@ -28,6 +28,7 @@ studio = Studio()
 core = Core()
 
 
+BF_CHANNEL = "BF"
 _MULTIPAGE_TIFF = studio.data().get_preferred_save_mode().MULTIPAGE_TIFF
 #These are found in the MM summary metadata class.
 _C_AXIS = "channel"
@@ -37,6 +38,7 @@ _P_AXIS= "position"
 
 #Group name for channels in Micro-Manager
 _CHANNEL = "Channel"
+
 
 
 class ImageCoordsBuilder():

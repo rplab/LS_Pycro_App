@@ -69,7 +69,7 @@ class AcquisitionOrder(ABC):
                  abort_flag: exceptions.AbortFlag, acq_directory: AcqDirectory):
         self._logger = logging.getLogger(self._get_name())
         #deepcopy so that if GUI is changed during acquisition is in progress, won't change running acquisition
-        self._acq_settings = deepcopy(acq_settings)
+        self._acq_settings = acq_settings
         self._adv_settings = self._acq_settings.adv_settings
         self._acq_dialog = acq_dialog
         self._abort_flag = abort_flag

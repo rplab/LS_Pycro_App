@@ -35,7 +35,7 @@ from LS_Pycro_App.utils.pycro import core
 
 class ImagingSequence(ABC):
     SINGLE_SAVE_IMAGE_LIMIT = 10000
-    WAIT_FOR_IMAGE_DELAY_MS = 5
+    WAIT_FOR_IMAGE_MS = 2
     CAMERA_TIMEOUT_MS = 2000
     ATTEMPT_LIMIT = 2
     """
@@ -171,8 +171,8 @@ class ImagingSequence(ABC):
             elif time_no_image >= self.CAMERA_TIMEOUT_MS:
                 self._camera_timeout_response()
             else:
-                core.sleep(self.WAIT_FOR_IMAGE_DELAY_MS)
-                time_no_image += self.WAIT_FOR_IMAGE_DELAY_MS
+                core.sleep(self.WAIT_FOR_IMAGE_MS)
+                time_no_image += self.WAIT_FOR_IMAGE_MS
 
     def _camera_timeout_response(self):
         """
@@ -352,7 +352,8 @@ class ZStack(ImagingSequence):
             self.close_datastore()
 
     def _initialize_z_stack(self):
-        Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
+        if not self._acq_settings.is_step_size_same():
+            Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
         Stage.set_z_position(self._region.z_stack_start_pos)
         Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
 

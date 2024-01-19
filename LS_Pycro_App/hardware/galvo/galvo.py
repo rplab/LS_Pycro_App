@@ -210,7 +210,7 @@ def exit():
     settings.dslm_offset = 0
     settings.dslm_scan_width = 0
     set_dslm_mode()
-    _scan_output.close
+    _scan_output.close()
     _cam_output.close()
 
 

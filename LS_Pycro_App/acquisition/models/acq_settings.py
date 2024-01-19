@@ -22,7 +22,8 @@ import re
 from copy import deepcopy
 
 from LS_Pycro_App.acquisition.models.adv_settings import AdvSettings
-from LS_Pycro_App.utils import constants, user_config, pycro
+from LS_Pycro_App.hardware import Camera
+from LS_Pycro_App.utils import constants, user_config, pycro, general_functions
 from LS_Pycro_App.utils.pycro import core
 
 
@@ -203,6 +204,7 @@ class Region():
     
     @snap_exposure.setter
     def snap_exposure(self, value):
+        value = general_functions.value_in_range(value, Camera.MIN_EXPOSURE, Camera.MAX_EXPOSURE)
         self._snap_exposure = value
         Region._snap_exposure = value
 
@@ -240,6 +242,7 @@ class Region():
     
     @video_exposure.setter
     def video_exposure(self, value):
+        value = general_functions.value_in_range(value, Camera.MIN_EXPOSURE, Camera.MAX_EXPOSURE)
         self._video_exposure = value
         Region._video_exposure = value
 
@@ -443,13 +446,6 @@ class AcqSettings():
     #### image_size_mb : float
         image size according to MM (sort of). Calculatiom I use is just width*height*(bit_depth)/10**6
 
-    #### min_exposure : int
-        minimum exposure of camera (for Hamamatsu, min is 1 ms and max is 10000 ms).
-
-    #### max_exposure : int
-        maximum exposure of camera.
-
-
     ## Instance Attributes:
 
     #### fish_list : list[Fish]
@@ -598,6 +594,21 @@ class AcqSettings():
         del self.fish_list[fish_num]
 
     #misc api methods
+    def is_step_size_same(self):
+        step_size = self.get_first_step_size()
+        for fish in self.fish_list:
+            for region in fish.region_list:
+                if region.z_stack_step_size != step_size and region.z_stack_enabled:
+                    return False
+        else:
+            return True
+        
+    def get_first_step_size(self):
+        for fish in self.fish_list:
+            for region in fish.region_list:
+                if region.z_stack_enabled:
+                    return region.z_stack_step_size
+        
     def reorder_channel_lists(self):
         """
         reorders region channel lists to match channel_order_list

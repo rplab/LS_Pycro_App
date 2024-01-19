@@ -45,3 +45,4 @@ class Ui_WilMainWindow(object):
         self.lsfm_label.setText(_translate("MainWindow", "<html><head/><body><p align=\"center\"><span style=\" font-size:18pt;\">Willamette LSFM Control Software</span></p></body></html>"))
         self.regions_button.setText(_translate("MainWindow", "CLS Setup"))
         self.exit_button.setText(_translate("MainWindow", "Exit"))
+        
