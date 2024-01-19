@@ -927,6 +927,8 @@ class AcqController(object):
     def _custom_exposure_check_box_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(checked)
+        if microscope == MicroscopeConfig.KLAMATH:
+            self._adv_settings.edge_trigger_enabled = checked
         self._update_dialogs()
 
     def _z_stack_exposure_line_edit_event(self, text):
