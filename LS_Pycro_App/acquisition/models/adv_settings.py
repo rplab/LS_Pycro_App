@@ -3,7 +3,6 @@ import numpy as np
 
 import LS_Pycro_App.hardware.camera
 from LS_Pycro_App.hardware import Camera
-from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
 from LS_Pycro_App.utils import constants, user_config, general_functions
 
 
