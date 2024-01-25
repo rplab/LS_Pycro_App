@@ -40,7 +40,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>CLS Setup</string>
+     <string>Regions Setup</string>
     </property>
    </widget>
    <widget class="QPushButton" name="exit_button">
