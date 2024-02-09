@@ -74,6 +74,7 @@ class AcquisitionOrder(ABC):
         self._acq_dialog = acq_dialog
         self._abort_flag = abort_flag
         self._acq_directory = acq_directory
+        self.backup_used = False
 
     def _abort_check(self):
         #abort_check is called throughout acquisitions to check if the user has aborted the acquisition.
@@ -187,16 +188,13 @@ class AcquisitionOrder(ABC):
                         self._update_acq_status(update_message)
 
     # directory methods
-    def _update_directory(self, fish: Fish):
-        if not self._is_enough_space(fish) and self._adv_settings.backup_directory_enabled:
-            self._acq_directory.set_root(self._adv_settings.backup_directory)
-
-    def _is_enough_space(self, fish: Fish) -> bool:
-        return dir_functions.is_enough_space(
-            self._get_size_mb_of_fish(fish), self._adv_settings.backup_directory_limit, self._acq_directory.root)
-
-    def _get_size_mb_of_fish(self, fish: Fish) -> float:
-        return fish.num_images*self._acq_settings.image_size_mb
+    def _update_directory(self, required_mb: float):
+        if self._adv_settings.backup_directory_enabled and not self.backup_used:
+            is_enough_space = dir_functions.is_enough_space(
+                required_mb, self._adv_settings.backup_directory_limit, self._acq_directory.root)
+            if not is_enough_space:
+                self._acq_directory.set_root(self._adv_settings.backup_directory)
+                self.backup_used = True
 
     # acq_dialog methods
     def _update_region_label(self, region_num):
@@ -273,7 +271,7 @@ class TimeSampAcquisition(AcquisitionOrder):
         for fish_num, fish in enumerate(self._acq_settings.fish_list):
             self._abort_check()
             if fish.imaging_enabled:
-                self._update_directory(fish)
+                self._update_directory(fish.size_mb)
                 self._update_fish_num(fish_num)
                 self._acquire_regions(fish)
 
@@ -302,7 +300,6 @@ class SampTimeAcquisition(AcquisitionOrder):
             if not start_region:
                 break
             fish = self._acq_settings.fish_list[fish_num]
-            self._update_directory(fish)
             self._update_fish_num(fish_num)
             self._move_to_region(start_region)
             self._acquire_time_points(fish, start_region)
@@ -311,6 +308,7 @@ class SampTimeAcquisition(AcquisitionOrder):
 
     def _acquire_time_points(self, fish: Fish, start_region: Region):
         for time_point in range(self._acq_settings.num_time_points):
+            self._update_directory(fish.size_mb)
             start_time = self._get_time()
             self._update_time_point_num(time_point)
             self._acquire_regions(fish)
@@ -353,6 +351,7 @@ class PosTimeAcquisition(AcquisitionOrder):
 
     def _acquire_time_points(self, region: Region):
         for time_point in range(self._acq_settings.num_time_points):
+            self._update_directory(region.size_mb)
             start_time = self._get_time()
             self._update_time_point_num(time_point)
             self._run_imaging_sequences(region)

@@ -114,6 +114,7 @@ class Region():
         self._video_num_frames: int = Region._video_num_frames
         self._video_exposure: float = Region._video_exposure
         self._video_channel_list: list[str] = deepcopy(Region._video_channel_list)
+        self._size_mb: float = 0
 
     #This setter pattern is used to store default values for created Region objects. 
     @property
@@ -257,6 +258,12 @@ class Region():
         Region._video_channel_list = value
 
     @property
+    def size_mb(self):
+        image_size = core.get_image_width()*core.get_image_height()*core.get_bytes_per_pixel()*constants.B_TO_MB
+        self._size_mb = image_size*self.num_images
+        return self._size_mb
+
+    @property
     def num_images(self):
         num_images = 0
         if self.z_stack_enabled:
@@ -342,6 +349,7 @@ class Fish():
         self._age: str = Fish._age
         self._inoculum: str = Fish._inoculum
         self._add_notes: str = Fish._add_notes
+        self._size_mb: float = 0
 
     @property
     def num_regions(self):
@@ -400,6 +408,12 @@ class Fish():
                 return True
         else:
             return False
+
+    @property
+    def size_mb(self):
+        image_size = core.get_image_width()*core.get_image_height()*core.get_bytes_per_pixel()*constants.B_TO_MB
+        self._size_mb = image_size*self.num_images
+        return self._size_mb
 
     #region_list methods
     def append_blank_region(self) -> Region:
@@ -505,6 +519,7 @@ class AcqSettings():
         self._image_size_mb: float = self.image_size_mb
         self._images_per_time_point: int = 0
         self._total_num_images: int = 0
+        self._size_mb: float = 0
         self.init_from_config()
 
     @property
@@ -576,7 +591,11 @@ class AcqSettings():
                 return True
         else:
             return False
-    
+        
+    @property
+    def size_mb(self):
+        self._size_mb = self.total_num_images*self.image_size_mb
+        return self._size_mb
 
     #fish_list methods
     def append_blank_fish(self) -> Fish:
