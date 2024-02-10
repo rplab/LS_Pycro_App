@@ -4,13 +4,13 @@ import logging
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
-from LS_Pycro_App.hardware import Stage
-from LS_Pycro_App.utils import constants, dir_functions, exceptions
 from LS_Pycro_App.acquisition.views.py import AcqDialog
 from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings, Fish, Region
 from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
 from LS_Pycro_App.acquisition.sequences.imaging import ImagingSequence, Snap, Video, SpectralVideo, ZStack, SpectralZStack
-
+from LS_Pycro_App.hardware import Stage
+from LS_Pycro_App.utils import constants, dir_functions, exceptions
+from LS_Pycro_App.utils.pycro import BF_CHANNEL
 
 class AcquisitionOrder(ABC):
     """
@@ -74,6 +74,7 @@ class AcquisitionOrder(ABC):
         self._acq_dialog = acq_dialog
         self._abort_flag = abort_flag
         self._acq_directory = acq_directory
+        self.backup_used = False
 
     def _abort_check(self):
         #abort_check is called throughout acquisitions to check if the user has aborted the acquisition.
@@ -161,18 +162,39 @@ class AcquisitionOrder(ABC):
                         return region, self._acq_settings.fish_list.index(fish)
         else:
             return None, None
+        
+    def _acquire_end_videos(self, fish_nums: list[int] = [], region_num: int = 0):
+        if self._adv_settings.end_videos_enabled:
+            self._update_acq_status("taking end videos...")
+            fish_list = [self._acq_settings.fish_list[num] for num in fish_nums] if fish_nums else self._acq_settings.fish_list
+            for fish in fish_list:
+                fish_num = self._acq_settings.fish_list.index(fish)
+                if fish.imaging_enabled:
+                    self._update_fish_label(fish_num)
+                    region = deepcopy(fish.region_list[region_num])
+                    region.video_enabled = True
+                    region.video_exposure = self._adv_settings.end_videos_exposure
+                    region.video_num_frames = self._adv_settings.end_videos_num_frames
+                    region.video_channel_list = [BF_CHANNEL]
+                    self._update_acq_status("moving to region...")
+                    Stage.move_stage(region.x_pos, region.y_pos, region.z_pos)
+                    acq_directory = deepcopy(self._acq_directory)
+                    acq_directory.root = f"{acq_directory.root}/end_videos"
+                    acq_directory.set_fish_num(fish_num)
+                    acq_directory.set_region_num(region_num)
+                    acq_directory.set_time_point(0)
+                    video = Video(region, self._acq_settings, self._abort_flag, acq_directory)
+                    for update_message in video.run():
+                        self._update_acq_status(update_message)
 
     # directory methods
-    def _update_directory(self, fish: Fish):
-        if not self._is_enough_space(fish) and self._adv_settings.backup_directory_enabled:
-            self._acq_directory.set_root(self._adv_settings.backup_directory)
-
-    def _is_enough_space(self, fish: Fish) -> bool:
-        return dir_functions.is_enough_space(
-            self._get_size_mb_of_fish(fish), self._adv_settings.backup_directory_limit, self._acq_directory.root)
-
-    def _get_size_mb_of_fish(self, fish: Fish) -> float:
-        return fish.num_images*self._acq_settings.image_size_mb
+    def _update_directory(self, required_mb: float):
+        if self._adv_settings.backup_directory_enabled and not self.backup_used:
+            is_enough_space = dir_functions.is_enough_space(
+                required_mb, self._adv_settings.backup_directory_limit, self._acq_directory.root)
+            if not is_enough_space:
+                self._acq_directory.set_root(self._adv_settings.backup_directory)
+                self.backup_used = True
 
     # acq_dialog methods
     def _update_region_label(self, region_num):
@@ -242,13 +264,14 @@ class TimeSampAcquisition(AcquisitionOrder):
                 self._wait_for_next_time_point(start_time)
             else:
                 break
+        self._acquire_end_videos()
         self._move_to_region(start_region)
 
     def _acquire_fish(self):
         for fish_num, fish in enumerate(self._acq_settings.fish_list):
             self._abort_check()
             if fish.imaging_enabled:
-                self._update_directory(fish)
+                self._update_directory(fish.size_mb)
                 self._update_fish_num(fish_num)
                 self._acquire_regions(fish)
 
@@ -277,14 +300,15 @@ class SampTimeAcquisition(AcquisitionOrder):
             if not start_region:
                 break
             fish = self._acq_settings.fish_list[fish_num]
-            self._update_directory(fish)
             self._update_fish_num(fish_num)
             self._move_to_region(start_region)
             self._acquire_time_points(fish, start_region)
+            self._acquire_end_videos([fish_num])
             fish_num += 1
 
     def _acquire_time_points(self, fish: Fish, start_region: Region):
         for time_point in range(self._acq_settings.num_time_points):
+            self._update_directory(fish.size_mb)
             start_time = self._get_time()
             self._update_time_point_num(time_point)
             self._acquire_regions(fish)
@@ -323,9 +347,11 @@ class PosTimeAcquisition(AcquisitionOrder):
                 self._update_region_num(region_num)
                 self._move_to_region(region)
                 self._acquire_time_points(region)
+                self._acquire_end_videos([self._acq_settings.fish_list.index(fish)], region_num)
 
     def _acquire_time_points(self, region: Region):
         for time_point in range(self._acq_settings.num_time_points):
+            self._update_directory(region.size_mb)
             start_time = self._get_time()
             self._update_time_point_num(time_point)
             self._run_imaging_sequences(region)

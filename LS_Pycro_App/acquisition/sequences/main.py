@@ -29,20 +29,15 @@ stage TTL signal itself, which I very highly doubt).
 
 import logging
 import threading
-import os
 from copy import deepcopy
 
 from LS_Pycro_App.acquisition.sequences.orders import TimeSampAcquisition, SampTimeAcquisition, PosTimeAcquisition
-from LS_Pycro_App.acquisition.sequences.imaging import Video
 from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
 from LS_Pycro_App.hardware import Stage, Camera, Galvo, Plc
-from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings
-from LS_Pycro_App.acquisition.models.adv_settings import AcqOrder
-from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
+from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings, AcqOrder
 from LS_Pycro_App.acquisition.views.py import AbortDialog, AcqDialog
-from LS_Pycro_App.hardware import Galvo
 from LS_Pycro_App.utils import exceptions, user_config
-from LS_Pycro_App.utils.pycro import core, studio, BF_CHANNEL
+from LS_Pycro_App.utils.pycro import core, studio
 
 
 class Acquisition(threading.Thread):
@@ -100,7 +95,6 @@ class Acquisition(threading.Thread):
             self._write_acquisition_notes()
             self._abort_flag.abort = False
             self._start_acquisition()
-            self._acquire_end_videos()
         except exceptions.AbortAcquisitionException:
             self._abort_acquisition(self._abort_flag.abort)
         except:
@@ -187,26 +181,3 @@ class Acquisition(threading.Thread):
         Plc.init_pulse_mode()
         core.clear_circular_buffer()
         Stage.reset_joystick()
-
-
-    def _acquire_end_videos(self):
-        if self._adv_settings.end_videos_enabled:
-            self._status_update("taking end videos...")
-            for fish_num, fish in enumerate(self._acq_settings.fish_list):
-                if fish.imaging_enabled:
-                    self._acq_dialog.fish_label.setText(f"Fish {fish_num + 1}")
-                    region = deepcopy(fish.region_list[0])
-                    region.video_enabled = True
-                    region.video_exposure = self._adv_settings.end_videos_exposure
-                    region.video_num_frames = self._adv_settings.end_videos_num_frames
-                    region.video_channel_list = [BF_CHANNEL]
-                    self._acq_dialog.acq_label.setText("moving to region...")
-                    Stage.move_stage(region.x_pos, region.y_pos, region.z_pos)
-                    acq_directory = deepcopy(self._acq_directory)
-                    acq_directory.root = f"{acq_directory.root}/end_videos"
-                    acq_directory.set_fish_num(fish_num)
-                    acq_directory.set_region_num(0)
-                    acq_directory.set_time_point(0)
-                    video = Video(region, self._acq_settings, self._abort_flag, acq_directory)
-                    for update_message in video.run():
-                        self._acq_dialog.acq_label.setText(update_message)

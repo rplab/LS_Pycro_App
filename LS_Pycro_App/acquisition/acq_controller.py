@@ -7,8 +7,7 @@ from pathlib import Path
 from PyQt5 import QtGui, QtWidgets
 
 from LS_Pycro_App.acquisition.sequences.main import Acquisition
-from LS_Pycro_App.acquisition.models.acq_settings import Region, Fish, AcqSettings
-from LS_Pycro_App.acquisition.models.adv_settings import AcqOrder
+from LS_Pycro_App.acquisition.models.acq_settings import Region, Fish, AcqSettings, AcqOrder
 from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
 from LS_Pycro_App.acquisition.views.py import AcqRegionsDialog, AcqOrderDialog, AcqSettingsDialog, AdvSettingsDialog, BrowseDialog
 from LS_Pycro_App.hardware import Stage, Camera
