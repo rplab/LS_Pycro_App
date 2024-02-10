@@ -284,14 +284,9 @@ class AcqController(object):
         self._acq_settings_dialog.researcher_line_edit.setText(self._acq_settings.researcher)
 
     def _update_memory_widgets(self):
-        total_images = self._acq_settings.total_num_images
         if self._adv_settings.acq_order == AcqOrder.TIME_SAMP:
             self._acq_settings_dialog.num_images_per_line_edit.setText(str(self._acq_settings.images_per_time_point))
-            if self._adv_settings.end_videos_enabled:
-                num_fish = len([fish for fish in self._acq_settings.fish_list if fish.imaging_enabled])
-                end_video_images = num_fish*self._adv_settings.end_videos_num_frames
-                total_images += end_video_images
-            self._acq_settings_dialog.total_images_line_edit.setText(str(total_images))
+            self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
         elif self._adv_settings.acq_order == AcqOrder.SAMP_TIME:
             # NA because different fish have different number of images
             self._acq_settings_dialog.num_images_per_line_edit.setText("N/A")
@@ -301,7 +296,7 @@ class AcqController(object):
             self._acq_settings_dialog.num_images_per_line_edit.setText("N/A")
             self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
 
-        memory_gb = total_images*self._acq_settings.image_size_mb*constants.MB_TO_GB
+        memory_gb = self._acq_settings.size_mb*constants.MB_TO_GB
         self._acq_settings_dialog.memory_line_edit.setText(str(round(memory_gb, AcqController.NUM_DECIMAL_PLACES)))
 
     def _update_adv_settings_dialog(self):
