@@ -34,8 +34,7 @@ from copy import deepcopy
 from LS_Pycro_App.acquisition.sequences.orders import TimeSampAcquisition, SampTimeAcquisition, PosTimeAcquisition
 from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
 from LS_Pycro_App.hardware import Stage, Camera, Galvo, Plc
-from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings
-from LS_Pycro_App.acquisition.models.adv_settings import AcqOrder
+from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings, AcqOrder
 from LS_Pycro_App.acquisition.views.py import AbortDialog, AcqDialog
 from LS_Pycro_App.utils import exceptions, user_config
 from LS_Pycro_App.utils.pycro import core, studio
