@@ -300,7 +300,7 @@ class ZStack(ImagingSequence):
                 framerate = general_functions.exposure_to_frequency(exposure)
                 Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
                 Galvo.set_lsrm_mode()
-                Plc.set_continuous_pulses(framerate)
+                Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
                 Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
             elif self._adv_settings.edge_trigger_enabled or self._region.z_stack_step_size > 1:
                 Camera.set_edge_trigger_mode()
