@@ -54,6 +54,7 @@ from LS_Pycro_App.utils import constants
 
 
 settings = GalvoSettings()
+settings.init_from_config()
 _logger = logging.getLogger(__name__)
 _scan_output = nidaqmx.Task()
 _cam_output = nidaqmx.Task()
