@@ -48,7 +48,7 @@ This program requires Python 3.9 or later.
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/rplab/LS_Pycro_App.git
+   git clone https://github.com/rplab/LS_Pycro_App
    ```
 2. Install required modules from requirements.txt file
    ```sh
