@@ -50,7 +50,7 @@ This program requires Python 3.9 or later.
    ```sh
    git clone https://github.com/rplab/LS_Pycro_App
    ```
-2. Install required modules from requirements.txt file
+2. Install dependencies from requirements.txt file
    ```sh
    pip install -r /path/to/requirements.txt
    ```
