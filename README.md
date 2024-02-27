@@ -26,7 +26,7 @@ SOFTWARE.
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <a href="https://github.com/jsokoloff23/LS_Pycro_App">
+  <a href="https://github.com/rplab/LS_Pycro_App">
     <img src="https://raw.githubusercontent.com/rplab/LS_Pycro_App/master/app_icon.png" alt="Logo" width="80" height="80">
   </a>
 
@@ -48,7 +48,7 @@ This program requires Python 3.9 or later.
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/jsokoloff23/LS_Pycro_App.git
+   git clone https://github.com/rplab/LS_Pycro_App.git
    ```
 2. Install required modules from requirements.txt file
    ```sh
