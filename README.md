@@ -33,7 +33,7 @@ SOFTWARE.
 ## LS_Pycro_App
 
   <p align="left">
-    LS_Pycro_App is a Pycro-Manager-based hardware control and image acquisition application for light sheet microscopes in the Parthasarathy Lab in the Department of Physics at the University of Oregon
+    LS_Pycro_App is a Pycro-Manager-based hardware control and image acquisition application for light sheet microscopes in the Parthasarathy Lab in the Department of Physics at the University of Oregon.
   </p>
 </div>
 
