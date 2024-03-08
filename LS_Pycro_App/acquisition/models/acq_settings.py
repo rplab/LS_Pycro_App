@@ -340,7 +340,7 @@ class Fish():
 
     _fish_type: str = ""
     _age: str = ""
-    _inoculum: str = ""
+    _treatment: str = ""
     _add_notes: str = ""
 
     def __init__(self):
@@ -348,7 +348,7 @@ class Fish():
         self._num_regions: int = len(self.region_list)
         self._fish_type: str = Fish._fish_type
         self._age: str = Fish._age
-        self._inoculum: str = Fish._inoculum
+        self._treatment: str = Fish._treatment
         self._add_notes: str = Fish._add_notes
         self._size_mb: float = 0
 
@@ -376,13 +376,13 @@ class Fish():
         Fish._age = value
 
     @property
-    def inoculum(self):
-        return self._inoculum
+    def treatment(self):
+        return self._treatment
     
-    @inoculum.setter
-    def inoculum(self, value):
-        self._inoculum = value
-        Fish._inoculum= value
+    @treatment.setter
+    def treatment(self, value):
+        self._treatment = value
+        Fish._treatment= value
 
     @property
     def add_notes(self):

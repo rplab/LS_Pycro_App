@@ -408,7 +408,7 @@ class AcqController(object):
         self.regions_dialog.fish_notes_label.setText(f"Fish {self._fish_num + 1} Notes")
         self.regions_dialog.fish_type_line_edit.setText(str(self._fish.fish_type))
         self.regions_dialog.age_line_edit.setText(str(self._fish.age))
-        self.regions_dialog.inoculum_line_edit.setText(str(self._fish.inoculum))
+        self.regions_dialog.inoculum_line_edit.setText(str(self._fish.treatment))
         self.regions_dialog.add_notes_text_edit.setPlainText(str(self._fish.add_notes))
 
     def _position_labels_update(self):
@@ -732,7 +732,7 @@ class AcqController(object):
     def _inoculum_line_edit_event(self, text):
         # Changes inoculum type text for current fish
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._fish.inoculum = text
+        self._fish.treatment = text
         self._acq_settings.write_to_config()
 
     def _add_notes_text_edit_event(self):

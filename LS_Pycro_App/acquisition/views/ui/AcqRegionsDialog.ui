@@ -61,7 +61,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Sample 1</string>
+    <string>Fish 1</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
@@ -1061,7 +1061,7 @@
     <string>Age:</string>
    </property>
   </widget>
-  <widget class="QLineEdit" name="inoculum_line_edit">
+  <widget class="QLineEdit" name="treatment_line_edit">
    <property name="geometry">
     <rect>
      <x>570</x>
@@ -1103,17 +1103,17 @@
     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Current fish type, such as genotype, GF, CVZ, etc.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
    </property>
   </widget>
-  <widget class="QLabel" name="inoculum_label">
+  <widget class="QLabel" name="treatment_label">
    <property name="geometry">
     <rect>
-     <x>520</x>
+     <x>510</x>
      <y>140</y>
      <width>51</width>
      <height>20</height>
     </rect>
    </property>
    <property name="text">
-    <string>Inoculum:</string>
+    <string>treatment:</string>
    </property>
   </widget>
   <widget class="QLabel" name="fish_type_label">
