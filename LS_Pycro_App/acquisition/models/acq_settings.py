@@ -677,6 +677,7 @@ class AcqSettings():
         self._bytes_per_pixel: int = core.get_bytes_per_pixel()
         self._image_size_mb: float = self.image_size_mb
         self._images_per_time_point: int = 0
+        self._end_videos_total_num_frames: int = 0
         self._total_num_images: int = 0
         self._size_mb: float = 0
         self.init_from_config()
@@ -742,20 +743,20 @@ class AcqSettings():
         else:
             self._total_num_images = self.images_per_time_point
         if self.adv_settings.end_videos_enabled:
-            self._total_num_images += self.end_videos_total_num_frames
+            self._total_num_images += self._end_videos_total_num_frames
         return self._total_num_images
     
     @property
     def end_videos_total_num_frames(self):
         if not self.adv_settings.end_videos_enabled:
-            self.end_videos_total_num_frames = 0
+            self._end_videos_total_num_frames = 0
         elif self.adv_settings.acq_order == AcqOrder.TIME_SAMP or self.adv_settings.acq_order == AcqOrder.SAMP_TIME:
             num_fish = len([f for f in self.fish_list if f.imaging_enabled])
-            self.end_videos_total_num_frames = num_fish*self.adv_settings.end_videos_num_frames
+            self._end_videos_total_num_frames = num_fish*self.adv_settings.end_videos_num_frames
         elif self.adv_settings.acq_order == AcqOrder.POS_TIME:
             num_regions = len([r for f in self.fish_list for r in f.region_list if r.imaging_enabled()])
-            self.end_videos_total_num_frames = num_regions*self.adv_settings.end_videos_num_frames
-        return self.end_videos_total_num_frames
+            self._end_videos_total_num_frames = num_regions*self.adv_settings.end_videos_num_frames
+        return self._end_videos_total_num_frames
     
     @property
     def imaging_enabled(self):
