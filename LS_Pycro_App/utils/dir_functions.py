@@ -1,5 +1,8 @@
 import os
 import shutil
+import time
+
+import psutil
 
 from LS_Pycro_App.utils import constants
  
@@ -31,4 +34,14 @@ def move_files_to_parent(child_dir):
         os.rmdir(child_dir)
     except:
         pass
-    
+
+
+def is_disk_writing(dir: str):
+    write_limit_mbps = 1
+    write_time_s = 1
+    start_used = psutil.disk_usage(dir).used
+    time.sleep(write_time_s)
+    mb_used = (psutil.disk_usage(dir).used - start_used)*constants.B_TO_MB
+    mbps = mb_used/write_time_s
+    return mbps > write_limit_mbps
+ 

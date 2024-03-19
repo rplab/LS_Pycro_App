@@ -54,8 +54,8 @@ class AcquisitionOrder(ABC):
     #### run()
         starts acquisition
     """
-    # delay is pretty arbitrary. At the very least should be less than a second
-    # to avoid inconsistent intervals between timepoints.
+    #delay is pretty arbitrary. At the very least should be less than a second
+    #to avoid inconsistent intervals between timepoints.
     TIME_DIALOG_UPDATE_DELAY_S = .01
 
     @abstractmethod
@@ -109,6 +109,9 @@ class AcquisitionOrder(ABC):
             self._abort_check()
             self._update_time_left(start_time)
             time.sleep(self.TIME_DIALOG_UPDATE_DELAY_S)
+        while dir_functions.is_disk_writing(self._acq_directory.get_directory()):
+            self._abort_check()
+            self._update_acq_status("Finishing saving...")
 
     #run helpers
     def _acquire_regions(self, fish: Fish):

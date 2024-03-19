@@ -110,7 +110,8 @@ class ImagingSequence(ABC):
 
     def _create_datastore_with_summary(self, channels: str | list):
         self._acq_directory.set_acq_type(f"{self._get_name()}/{channels}".replace(",",""))
-        self._datastore = pycro.MultipageDatastore(self._acq_directory.get_directory())
+        self._datastore = pycro.RAMDatastore()
+        #self._datastore = pycro.MultipageDatastore(self._acq_directory.get_directory())
         self._set_summary_metadata(channels)
 
     def _abort_check(self):
@@ -213,7 +214,7 @@ class Snap(ImagingSequence):
             self._create_datastore_with_summary(channel)
             pycro.set_channel(channel)
             self._snap_image(0)
-            self.close_datastore()
+            self._datastore.save_and_close(self._acq_directory.get_directory())
 
 
 class Video(ImagingSequence):
@@ -251,7 +252,7 @@ class Video(ImagingSequence):
             self._start_sequence_acquisition(self._region.video_num_frames)
             for update_message in self._wait_for_sequence_images():
                 yield update_message
-            self.close_datastore()
+            self._datastore.save_and_close(self._acq_directory.get_directory())
 
 
 class SpectralVideo(Video):
@@ -283,7 +284,7 @@ class SpectralVideo(Video):
                 pycro.set_channel(channel)
                 self._snap_image(current_frame, channel_num)
             current_frame += 1
-        self.close_datastore()
+        self._datastore.save_and_close(self._acq_directory.get_directory())
 
 
 class ZStack(ImagingSequence):
@@ -349,7 +350,7 @@ class ZStack(ImagingSequence):
             Stage.scan_start(self._adv_settings.z_stack_stage_speed)
             for update_message in self._wait_for_sequence_images():
                 yield update_message
-            self.close_datastore()
+            self._datastore.save_and_close(self._acq_directory.get_directory())
 
     def _initialize_z_stack(self):
         if not self._acq_settings.is_step_size_same():
@@ -402,4 +403,4 @@ class SpectralZStack(ZStack):
                 pycro.set_channel(channel)
                 self._snap_image(slice_num, channel_num)
             slice_num += 1
-        self.close_datastore()
+        self._datastore.save_and_close(self._acq_directory.get_directory())

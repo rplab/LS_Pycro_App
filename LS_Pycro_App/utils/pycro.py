@@ -296,7 +296,10 @@ class RAMDatastore():
         #MM documentation says to "freeze" datastore after data is no longer being added.
         #Not sure if it actually makes a difference...
         self.freeze()
-        self._datastore.save(_MULTIPAGE_TIFF, dir_functions.get_unique_directory(directory))
+        self._datastore.save(_MULTIPAGE_TIFF, dir_functions.get_unique_directory(directory), False)
+
+    def save_and_close(self, directory):
+        self._datastore.save_and_close(_MULTIPAGE_TIFF, dir_functions.get_unique_directory(directory), False)
 
     def set_summary_metadata(self, summary_metadata):
         self._datastore.set_summary_metadata(summary_metadata)
