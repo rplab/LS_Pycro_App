@@ -172,10 +172,11 @@ class AcquisitionOrder(ABC):
                 if fish.imaging_enabled:
                     self._update_fish_label(fish_num)
                     region = deepcopy(fish.region_list[region_num])
-                    region.video_enabled = True
-                    region.video_exposure = self._adv_settings.end_videos_exposure
-                    region.video_num_frames = self._adv_settings.end_videos_num_frames
-                    region.video_channel_list = [BF_CHANNEL]
+                    #Change private properties so default values in Region class attributes aren't modified
+                    region._video_enabled = True
+                    region._video_exposure = self._adv_settings.end_videos_exposure
+                    region._video_num_frames = self._adv_settings.end_videos_num_frames
+                    region._video_channel_list = [BF_CHANNEL]
                     self._update_acq_status("moving to region...")
                     Stage.move_stage(region.x_pos, region.y_pos, region.z_pos)
                     acq_directory = deepcopy(self._acq_directory)
