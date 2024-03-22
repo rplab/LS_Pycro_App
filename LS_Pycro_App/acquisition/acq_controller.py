@@ -834,7 +834,7 @@ class AcqController(object):
 
             # updating acq_dialog makes the list lose focus, which makes these buttons to not work
             # correctly, so this function just writes to config and updates the order list.
-            self._update_channel_order_list()
+            self._acq_settings.channel_order_list = self._get_list_from_model(self._acq_order_model)
             self._update_regions_dialog()
             self._acq_settings.write_to_config()
 
@@ -848,16 +848,10 @@ class AcqController(object):
                 self._channel_order_model.insertRow(channel_index + 1, channel)
                 new_index = self._channel_order_model.indexFromItem(channel[0])
                 self._acq_settings_dialog.channel_order_list_view.setCurrentIndex(new_index)
-            self._update_channel_order_list()
+            self._acq_settings.channel_order_list = self._get_list_from_model(self._acq_order_model)
             self._update_regions_dialog()
             self._acq_settings.write_to_config()
 
-    # Helper for channel order buttons, since update_acq_settings_dialog can't be called.
-    def _update_channel_order_list(self):
-        lst = []
-        for index in range(self._channel_order_model.rowCount()):
-            lst.append(self._channel_order_model.item(index, 0).text())
-        self._acq_settings.channel_order_list = lst
 
     def _adv_settings_button_clicked(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
