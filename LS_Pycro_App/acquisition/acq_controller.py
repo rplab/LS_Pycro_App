@@ -642,60 +642,69 @@ class AcqController(object):
         self._region.video_enabled = video_enabled
         self._update_dialogs()
 
+    def _list_move(self, 
+                   list_view: QtWidgets.QListView, 
+                   remove_model: QtGui.QStandardItemModel, 
+                   add_model: QtGui.QStandardItemModel):
+        channel_index = list_view.selectedIndexes()[0].row()
+        channel = remove_model.item(channel_index).text()
+        remove_model.removeRow(channel_index)
+        add_model.appendRow(QtGui.QStandardItem(channel))
+    
+    def _get_list_from_model(self, model: QtGui.QStandardItemModel):
+        lst = []
+        for row in range(model.rowCount()):
+            lst.append(model.item(row).text())
+        return lst
+
     def _z_stack_available_list_move(self):
         # on double click, switches channel from available list to used list
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        channel_index = self.regions_dialog.z_stack_available_list_view.selectedIndexes()[0].row()
-        channel = self._z_stack_available_model.item(channel_index).text()
-        self._z_stack_available_model.removeRow(channel_index)
-        self._z_stack_used_model.appendRow(QtGui.QStandardItem(channel))
-        self._region.z_stack_channel_list.append(channel)
+        self._list_move(self.regions_dialog.z_stack_available_list_view,
+                        self._z_stack_available_model,
+                        self._z_stack_used_model)
+        self._region.z_stack_channel_list = self._get_list_from_model(self._z_stack_used_model)
         self._update_dialogs()
 
     def _z_stack_used_list_move(self):
         # Same as available_list_move except from used list to available list
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        channel_index = self.regions_dialog.z_stack_used_list_view.selectedIndexes()[0].row()
-        channel = self._z_stack_used_model.item(channel_index).text()
-        self.regions_dialog.z_stack_used_list_view.model().removeRow(channel_index)
-        self._z_stack_available_model.appendRow(QtGui.QStandardItem(channel))
-        self._region.z_stack_channel_list.remove(channel)
+        self._list_move(self.regions_dialog.z_stack_used_list_view,
+                        self._z_stack_used_model,
+                        self._z_stack_available_model)
+        self._region.z_stack_channel_list = self._get_list_from_model(self._z_stack_used_model)
         self._update_dialogs()
 
     def _snap_available_list_move(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        channel_index = self.regions_dialog.snap_available_list_view.selectedIndexes()[0].row()
-        channel = self._snap_available_model.item(channel_index).text()
-        self._snap_available_model.removeRow(channel_index)
-        self._snap_used_model.appendRow(QtGui.QStandardItem(channel))
-        self._region.snap_channel_list.append(channel)
+        self._list_move(self.regions_dialog.snap_available_list_view,
+                        self._snap_available_model,
+                        self._snap_used_model)
+        self._region.snap_channel_list = self._get_list_from_model(self._snap_used_model)
         self._update_dialogs()
 
     def _snap_used_list_move(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        channel_index = self.regions_dialog.snap_used_list_view.selectedIndexes()[0].row()
-        channel = self._snap_used_model.item(channel_index).text()
-        self._snap_used_model.removeRow(channel_index)
-        self._snap_available_model.appendRow(QtGui.QStandardItem(channel))
-        self._region.snap_channel_list.remove(channel)
+        self._list_move(self.regions_dialog.snap_used_list_view,
+                        self._snap_used_model,
+                        self._snap_available_model)
+        self._region.snap_channel_list = self._get_list_from_model(self._snap_used_model)
         self._update_dialogs()
 
     def _video_available_list_move(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        channel_index = self.regions_dialog.video_available_list_view.selectedIndexes()[0].row()
-        channel = self._video_available_model.item(channel_index).text()
-        self._video_available_model.removeRow(channel_index)
-        self._video_used_model.appendRow(QtGui.QStandardItem(channel))
-        self._region.video_channel_list.append(channel)
+        self._list_move(self.regions_dialog.video_available_list_view,
+                        self._video_available_model,
+                        self._video_used_model)
+        self._region.video_channel_list = self._get_list_from_model(self._video_used_model)
         self._update_dialogs()
 
     def _video_used_list_move(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        channel_index = self.regions_dialog.video_used_list_view.selectedIndexes()[0].row()
-        channel = self._video_used_model.item(channel_index).text()
-        self._video_used_model.removeRow(channel_index)
-        self._video_available_model.appendRow(QtGui.QStandardItem(channel))
-        self._region.video_channel_list.remove(channel)
+        self._list_move(self.regions_dialog.video_used_list_view,
+                        self._video_used_model,
+                        self._video_available_model)
+        self._region.video_channel_list = self._get_list_from_model(self._video_used_model)
         self._update_dialogs()
 
     def _x_line_edit_event(self, text):
@@ -825,7 +834,7 @@ class AcqController(object):
 
             # updating acq_dialog makes the list lose focus, which makes these buttons to not work
             # correctly, so this function just writes to config and updates the order list.
-            self._update_channel_order_list()
+            self._acq_settings.channel_order_list = self._get_list_from_model(self._acq_order_model)
             self._update_regions_dialog()
             self._acq_settings.write_to_config()
 
@@ -839,16 +848,10 @@ class AcqController(object):
                 self._channel_order_model.insertRow(channel_index + 1, channel)
                 new_index = self._channel_order_model.indexFromItem(channel[0])
                 self._acq_settings_dialog.channel_order_list_view.setCurrentIndex(new_index)
-            self._update_channel_order_list()
+            self._acq_settings.channel_order_list = self._get_list_from_model(self._acq_order_model)
             self._update_regions_dialog()
             self._acq_settings.write_to_config()
 
-    # Helper for channel order buttons, since update_acq_settings_dialog can't be called.
-    def _update_channel_order_list(self):
-        lst = []
-        for index in range(self._channel_order_model.rowCount()):
-            lst.append(self._channel_order_model.item(index, 0).text())
-        self._acq_settings.channel_order_list = lst
 
     def _adv_settings_button_clicked(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
