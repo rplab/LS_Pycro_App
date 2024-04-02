@@ -510,7 +510,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>mV</string>
+    <string>V</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
@@ -526,7 +526,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>mV</string>
+    <string>V</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
@@ -542,7 +542,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>mV</string>
+    <string>V</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
@@ -581,7 +581,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>mV</string>
+    <string>V</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
@@ -623,7 +623,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>mV</string>
+    <string>V</string>
    </property>
    <property name="alignment">
     <set>Qt::AlignCenter</set>
