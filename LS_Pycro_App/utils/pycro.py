@@ -252,8 +252,8 @@ class MultipageDatastore():
     See: https://micro-manager.org/apidoc/mmstudio/latest/org/micromanager/data/Datastore.html
     """
     def __init__(self, save_path):
-        save_path = dir_functions.get_unique_directory(save_path)
-        self._datastore = studio.data().create_multipage_tiff_datastore(save_path, True, False)
+        self.save_path = dir_functions.get_unique_directory(save_path)
+        self._datastore = studio.data().create_multipage_tiff_datastore(self.save_path, True, False)
     
     def freeze(self):
         self._datastore.freeze()
@@ -273,6 +273,10 @@ class MultipageDatastore():
         #that exception.
         with contextlib.suppress(Exception):
             self._datastore.close()
+
+    def close_and_move_files(self):
+        self.close()
+        dir_functions.move_files_to_parent(self.save_path)
 
 
 class RAMDatastore():
