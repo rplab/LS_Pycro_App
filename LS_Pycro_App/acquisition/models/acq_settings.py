@@ -115,7 +115,7 @@ class Region():
         self._video_num_frames: int = Region._video_num_frames
         self._video_exposure: float = Region._video_exposure
         self._video_channel_list: list[str] = deepcopy(Region._video_channel_list)
-        self._size_mb: float = 0
+        self._size_mb: float = 0.
 
     #This setter pattern is used to store default values for created Region objects. 
     @property
@@ -350,7 +350,7 @@ class Fish():
         self._age: str = Fish._age
         self._treatment: str = Fish._treatment
         self._add_notes: str = Fish._add_notes
-        self._size_mb: float = 0
+        self._size_mb: float = 0.
 
     @property
     def num_regions(self):
@@ -679,7 +679,7 @@ class AcqSettings():
         self._images_per_time_point: int = 0
         self._end_videos_total_num_frames: int = 0
         self._total_num_images: int = 0
-        self._size_mb: float = 0
+        self._size_mb: float = 0.
         self.init_from_config()
 
     @property
