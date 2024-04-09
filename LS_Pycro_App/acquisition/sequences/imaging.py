@@ -21,7 +21,7 @@ the more general exception handling (found in acquisition_class) is called.
 all methods that rely on an instance of AcquisitionSettings should be set in acquisition_classes, not here.
 """
 
-import contextlib
+import shutil
 from abc import ABC, abstractmethod
 
 import LS_Pycro_App.hardware.camera
@@ -29,7 +29,7 @@ from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings, Region
 from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
 from LS_Pycro_App.hardware import Camera, Plc, Stage, Galvo
 from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
-from LS_Pycro_App.utils import dir_functions, exceptions, pycro, general_functions
+from LS_Pycro_App.utils import exceptions, pycro, general_functions
 from LS_Pycro_App.utils.pycro import core
 
 
@@ -93,14 +93,6 @@ class ImagingSequence(ABC):
         self._abort_flag = abort_flag
         self._acq_directory = acq_directory
 
-    def close_datastore(self):
-        # supress attribute error in case datastore doesn't exist
-        with contextlib.suppress(AttributeError):
-            self._datastore.close()
-            #MM creates a folder with the smame name as the filename, which I found redundant, so the files are moved
-            #to the parent folder and that folder is deleted.
-            dir_functions.move_files_to_parent(self._acq_directory.get_directory())
-
     def run(self):
         for update_message in self._acquire_images():
             yield update_message
@@ -115,7 +107,7 @@ class ImagingSequence(ABC):
 
     def _abort_check(self):
         if self._abort_flag.abort:
-            self.close_datastore()
+            self._datastore.close_and_move_files()
             raise exceptions.AbortAcquisitionException
         
     def _pre_acquisition_hardware_init(self, exposure):
@@ -168,8 +160,8 @@ class ImagingSequence(ABC):
                 if not (core.is_sequence_running() or is_saving):
                     yield f"Saving {self._get_name()}"
                     is_saving = True
-            elif time_no_image >= self.CAMERA_TIMEOUT_MS:
-                self._camera_timeout_response()
+            elif time_no_image >= ImagingSequence.CAMERA_TIMEOUT_MS:
+                raise exceptions.CameraTimeoutException
             else:
                 core.sleep(self.WAIT_FOR_IMAGE_MS)
                 time_no_image += self.WAIT_FOR_IMAGE_MS
@@ -185,8 +177,7 @@ class ImagingSequence(ABC):
         Plc.set_continuous_pulses(20)
         core.stop_sequence_acquisition()
         core.clear_circular_buffer()
-        self.close_datastore()
-        raise exceptions.CameraTimeoutException
+        self._datastore.close()
 
 
 class Snap(ImagingSequence):
@@ -213,7 +204,7 @@ class Snap(ImagingSequence):
             self._create_datastore_with_summary(channel)
             pycro.set_channel(channel)
             self._snap_image(0)
-            self.close_datastore()
+            self._datastore.close_and_move_files()
 
 
 class Video(ImagingSequence):
@@ -242,16 +233,30 @@ class Video(ImagingSequence):
         I can't see a future where sequence acquisitions don't follow this pattern, but if it happens, a different
         implementation will have to be written.
         """
-        self._pre_acquisition_hardware_init(self._region.video_exposure)
+        self._pre_acquisition_hardware_init(self._adv_settings.z_stack_exposure)
         for channel in self._region.video_channel_list:
-            self._abort_check()
-            yield f"Acquiring {channel} {self._get_name()}"
-            pycro.set_channel(channel)
-            self._create_datastore_with_summary(channel)
-            self._start_sequence_acquisition(self._region.video_num_frames)
-            for update_message in self._wait_for_sequence_images():
-                yield update_message
-            self.close_datastore()
+            attempt_num = 0
+            while attempt_num < ImagingSequence.ATTEMPT_LIMIT:
+                self._abort_check()
+                yield f"Acquiring {channel} {self._get_name()}"
+                pycro.set_channel(channel)
+                self._create_datastore_with_summary(channel)
+                self._start_sequence_acquisition(self._region.video_num_frames)
+                try:
+                    for update_message in self._wait_for_sequence_images():
+                        yield update_message
+                except exceptions.CameraTimeoutException:
+                    #upon camera timeout exception, reattempts until attempt_num == attempt limit
+                    self._camera_timeout_response()
+                    attempt_num += 1
+                    if attempt_num < ImagingSequence.ATTEMPT_LIMIT:
+                        self._datastore.close()
+                        #deletes images, unless it's the final attempt
+                        shutil.rmtree(self._acq_directory.get_directory())
+                else:
+                    self._datastore.close_and_move_files()
+                    #breaks upon success
+                    break
 
 
 class SpectralVideo(Video):
@@ -283,7 +288,7 @@ class SpectralVideo(Video):
                 pycro.set_channel(channel)
                 self._snap_image(current_frame, channel_num)
             current_frame += 1
-        self.close_datastore()
+        self._datastore.close_and_move_files()
 
 
 class ZStack(ImagingSequence):
@@ -308,6 +313,11 @@ class ZStack(ImagingSequence):
                 Camera.set_sync_readout_mode()
         elif microscope == MicroscopeConfig.WILLAMETTE:
             Camera.set_ext_trig_mode()
+
+    def _camera_timeout_response(self):
+        #calls default camera reset function from super class
+        super()._camera_timeout_response()
+        Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
 
     def _set_summary_metadata(self, channel):
         summary_builder = pycro.SummaryMetadataBuilder().z(self._region.z_stack_num_frames).step(
@@ -340,16 +350,30 @@ class ZStack(ImagingSequence):
         """
         self._pre_acquisition_hardware_init(self._adv_settings.z_stack_exposure)
         for channel in self._region.z_stack_channel_list:
-            self._abort_check()
-            yield f"Acquiring {channel} {self._get_name()}"
-            pycro.set_channel(channel)
-            self._create_datastore_with_summary(channel)
-            self._initialize_z_stack()
-            self._start_sequence_acquisition(self._region.z_stack_num_frames)
-            Stage.scan_start(self._adv_settings.z_stack_stage_speed)
-            for update_message in self._wait_for_sequence_images():
-                yield update_message
-            self.close_datastore()
+            attempt_num = 0
+            while attempt_num < ImagingSequence.ATTEMPT_LIMIT:
+                self._abort_check()
+                yield f"Acquiring {channel} {self._get_name()}"
+                pycro.set_channel(channel)
+                self._create_datastore_with_summary(channel)
+                self._initialize_z_stack()
+                self._start_sequence_acquisition(self._region.z_stack_num_frames)
+                Stage.scan_start(self._adv_settings.z_stack_stage_speed)
+                try:
+                    for update_message in self._wait_for_sequence_images():
+                        yield update_message
+                except exceptions.CameraTimeoutException:
+                    #upon camera timeout exception, reattempts until attempt_num == attempt limit
+                    self._camera_timeout_response()
+                    attempt_num += 1
+                    if attempt_num < ImagingSequence.ATTEMPT_LIMIT:
+                        self._datastore.close()
+                        #deletes images, unless it's the final attempt
+                        shutil.rmtree(self._acq_directory.get_directory())
+                else:
+                    self._datastore.close_and_move_files()
+                    #breaks upon success
+                    break
 
     def _initialize_z_stack(self):
         if not self._acq_settings.is_step_size_same():
@@ -402,4 +426,4 @@ class SpectralZStack(ZStack):
                 pycro.set_channel(channel)
                 self._snap_image(slice_num, channel_num)
             slice_num += 1
-        self.close_datastore()
+        self._datastore.close_and_move_files()
