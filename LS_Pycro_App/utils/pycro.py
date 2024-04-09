@@ -275,6 +275,12 @@ class MultipageDatastore():
             self._datastore.close()
 
     def close_and_move_files(self):
+        """
+        Closes and then moves files to parent directory.
+
+        Micro-Manager creates an extra, redundant folder, so move the files to parent and then
+        delete parent folder.
+        """
         self.close()
         dir_functions.move_files_to_parent(self.save_path)
 
