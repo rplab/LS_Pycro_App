@@ -7,41 +7,41 @@
     <x>0</x>
     <y>0</y>
     <width>494</width>
-    <height>194</height>
+    <height>199</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Dialog</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="1" column="1">
-    <widget class="QLineEdit" name="velocity_line_edit"/>
+   <item row="6" column="3">
+    <widget class="QLineEdit" name="steps_line_edit"/>
    </item>
-   <item row="1" column="0">
-    <widget class="QLabel" name="velocity_label">
+   <item row="6" column="2">
+    <widget class="QLabel" name="steps_label">
      <property name="text">
-      <string>Velocity</string>
+      <string>Steps</string>
      </property>
     </widget>
    </item>
-   <item row="1" column="3">
-    <widget class="QPushButton" name="one_step_f_button">
+   <item row="3" column="3">
+    <widget class="QPushButton" name="f_button">
      <property name="text">
-      <string>One Step Forward</string>
+      <string>Forward</string>
      </property>
     </widget>
    </item>
-   <item row="3" column="1">
-    <widget class="QPushButton" name="stop_button">
+   <item row="4" column="3">
+    <widget class="QPushButton" name="b_button">
      <property name="text">
-      <string>Stop</string>
+      <string>Backward</string>
      </property>
     </widget>
    </item>
-   <item row="0" column="3">
-    <widget class="QLabel" name="rotation_label">
+   <item row="0" column="1">
+    <widget class="QLabel" name="pump_label">
      <property name="text">
-      <string>Rotation</string>
+      <string>Pump</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
@@ -69,37 +69,41 @@
      </property>
     </widget>
    </item>
-   <item row="0" column="1">
-    <widget class="QLabel" name="pump_label">
+   <item row="1" column="3">
+    <widget class="QPushButton" name="one_step_f_button">
      <property name="text">
-      <string>Pump</string>
+      <string>One Step Forward</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="1">
+    <widget class="QPushButton" name="stop_button">
+     <property name="text">
+      <string>Stop</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="3">
+    <widget class="QLabel" name="rotation_label">
+     <property name="text">
+      <string>Rotation</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
      </property>
     </widget>
    </item>
-   <item row="6" column="3">
-    <widget class="QLineEdit" name="steps_line_edit"/>
-   </item>
-   <item row="6" column="2">
-    <widget class="QLabel" name="steps_label">
+   <item row="1" column="0">
+    <widget class="QLabel" name="velocity_label">
      <property name="text">
-      <string>Steps</string>
+      <string>Velocity</string>
      </property>
     </widget>
    </item>
-   <item row="3" column="3">
-    <widget class="QPushButton" name="f_button">
+   <item row="6" column="0">
+    <widget class="QLabel" name="port_label">
      <property name="text">
-      <string>Forward</string>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="3">
-    <widget class="QPushButton" name="b_button">
-     <property name="text">
-      <string>Backward</string>
+      <string>Port</string>
      </property>
     </widget>
    </item>
@@ -122,11 +126,28 @@
      </item>
     </widget>
    </item>
-   <item row="6" column="0">
-    <widget class="QLabel" name="port_label">
+   <item row="1" column="1">
+    <widget class="QLineEdit" name="velocity_line_edit"/>
+   </item>
+   <item row="7" column="0">
+    <widget class="QLabel" name="label">
      <property name="text">
-      <string>Port</string>
+      <string>Valves</string>
      </property>
+    </widget>
+   </item>
+   <item row="7" column="1">
+    <widget class="QComboBox" name="comboBox">
+     <item>
+      <property name="text">
+       <string>Open</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>Closed</string>
+      </property>
+     </item>
     </widget>
    </item>
   </layout>
