@@ -14,6 +14,7 @@ CONFIG_OPTION = "microscope config"
 class MicroscopeConfig(Enum):
     KLAMATH = 1
     WILLAMETTE = 2
+    HTLS = 3
 
 def get_microscope_from_config():
     if user_config.has_section(CONFIG_SECTION):
