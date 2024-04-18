@@ -12,6 +12,14 @@ elif microscope == MicroscopeConfig.KLAMATH:
     from LS_Pycro_App.hardware.camera import Hamamatsu as Camera
     from LS_Pycro_App.hardware.plc import KlaPlc as Plc
     from LS_Pycro_App.hardware.stage import KlaStage as Stage
+elif microscope == MicroscopeConfig.HTLS:
+    import LS_Pycro_App.hardware.galvo.galvo as Galvo
+    import LS_Pycro_App.hardware.htls.pump as Pump
+    import LS_Pycro_App.hardware.htls.rotation as Rotation
+    import LS_Pycro_App.hardware.htls.valves as Valves
+    from LS_Pycro_App.hardware.camera import Hamamatsu as Camera
+    from LS_Pycro_App.hardware.plc import KlaPlc as Plc
+    from LS_Pycro_App.hardware.stage import KlaStage as Stage
 
 #Initializes camera to default state.
 with contextlib.suppress(exceptions.HardwareException):
@@ -24,3 +32,13 @@ with contextlib.suppress(exceptions.HardwareException):
 #Initializes plc to default state.
 with contextlib.suppress(exceptions.HardwareException):
     Plc.init_pulse_mode()
+
+if microscope == MicroscopeConfig.HTLS:
+    with contextlib.suppress(exceptions.HardwareException):
+        Pump.init()
+
+    with contextlib.suppress(exceptions.HardwareException):
+        Rotation.init()
+
+    with contextlib.suppress(exceptions.HardwareException):
+        Valves.init()
