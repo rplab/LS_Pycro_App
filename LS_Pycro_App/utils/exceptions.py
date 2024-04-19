@@ -31,3 +31,22 @@ class CameraTimeoutException(Exception):
     this on 11/13/2022) if there's a reason to in the future.
     """
     pass
+
+class DetectionTimeoutException(Exception):
+    """
+    Should be raised if detection timeout limit is exceeded while attempting to detect fish during
+    HTLS acquisition.
+    """
+    pass
+
+class WeirdFishException(Exception):
+    """
+    Should be raised if during fish detection, something seems abnormal. Response to this exception should be to
+    skip the fish and move on to detection of the next one.
+    """
+    pass
+
+class BubbleException(Exception):
+    """
+    Should be raised if bubble is detected during detection.
+    """
