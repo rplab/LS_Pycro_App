@@ -24,7 +24,7 @@ class Camera(ABC):
     _logger = logging.getLogger(__name__)
     CAM_NAME : str = core.get_camera_device()
 
-    _WAIT_FOR_IMAGE_MS : float = 0.1
+    _WAIT_FOR_IMAGE_MS : float = 0.01
     DEFAULT_EXPOSURE : float = 20
     
     @classmethod
@@ -141,6 +141,7 @@ class Hamamatsu(Camera):
     """
     MAX_EXPOSURE = 2000
     MIN_EXPOSURE = .010
+    DETECTION_EXPOSURE = 10
 
     #Hamamatsu property names
     _SENSOR_MODE_PROP = "SENSOR MODE"
@@ -279,3 +280,12 @@ class Hamamatsu(Camera):
         """
         return cls.READOUT_PER_ROW_S*(image_height/2 + cls.NUM_LINES_DELAY)
     
+    @classmethod
+    @handle_exception
+    def set_binning(cls, binning: int):
+        """
+        Sets binning to given binning, Binning should be an integer: 1 for no binning, 2 for 2x2 binning
+        or 4 for 4x4 binning.
+        """
+        cls.set_property("Binning", binning)
+        
