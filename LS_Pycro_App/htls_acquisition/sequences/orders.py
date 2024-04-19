@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import logging
+import pathlib
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
@@ -8,8 +9,10 @@ from LS_Pycro_App.acquisition.views.py import AcqDialog
 from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings, Region
 from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
 from LS_Pycro_App.acquisition.sequences.imaging import ImagingSequence, Snap, Video, SpectralVideo, ZStack, SpectralZStack
-from LS_Pycro_App.hardware import Stage
-from LS_Pycro_App.utils import dir_functions, exceptions
+from LS_Pycro_App.hardware import Stage, Camera
+from LS_Pycro_App.utils import dir_functions, exceptions, pycro, fish_detection
+from LS_Pycro_App.utils.pycro import core, studio
+
 
 class HTLSSequence():
     """
@@ -40,6 +43,7 @@ class HTLSSequence():
     # delay is pretty arbitrary. At the very least should be less than a second
     # to avoid inconsistent intervals between timepoints.
     TIME_DIALOG_UPDATE_DELAY_S = .01
+    _DETECT_TIMEOUT_S = 300
 
     @abstractmethod
     def run(self):
@@ -142,14 +146,24 @@ class HTLSSequence():
     def acquire_fish(self):
         fish_num = 0
         time_no_fish = 0
+        Camera.set_binning(2)
+        Camera.set_exposure(Camera.DETECTION_EXPOSURE)
+        bg_image = self._get_bg_image()
+        bg_image_mean = np.mean(bg_image)
+        bg_image_std = np.std(bg_image)
         while fish_num < self._acq_settings.num_fish:
             pump.set_port(PumpPort.O)
             pump.set_speed(pump.ACQUIRE_SPEED)
             pump.set_zero()
-            while not fish_is_detected(self):
-                time_no_fish += 1
+            detect_start_time = time.time()
+            while True:
+                if not fish_detection.fish_detected():
+                    time.sleep(Camera.DETECTION_EXPOSURE)
+                elif time.time() - detect_start_time > HTLSSequence._DETECT_TIMEOUT_S:
+                    raise exceptions.DetectionTimeoutException
                 self._abort_check()
-            self.center_fish()
+            fish_x_position = fish_detection.get_region_1_x()
+            Stage.set_x_position(fish_x_position)
             self.rotate_fish()
             self.region.x_pos = Stage.get_x_position()
             self.region.y_pos = Stage.get_y_position()
@@ -157,3 +171,77 @@ class HTLSSequence():
             self._acq_directory.set_fish_num(fish_num + 1)
             self._run_imaging_sequences(self.region)
             fish_num += 1
+
+    def _get_bg_image(self) -> np.ndarray:
+        Camera.snap_image()
+        return pycro.pop_next_image().get_raw_pixels()
+    
+    def get_capillary_image(self):
+
+        x_0 = -8320
+        y_0 = -2443
+        z_0 = -2642
+        x_1 = 10237
+
+        pixel_size = core.get_pixel_size_um()
+        image_width_um = pixel_size*core.get_image_width()
+        #0.90 provides 10% overlap for stitched image
+        x_spacing = 0.9*image_width_um
+        num_steps = int(np.ceil(np.abs((x_1-x_0)/x_spacing)))
+        y_spacing = (y_1-y_0)/num_steps
+
+        images = []
+        positions = []
+        for step_num in range(num_steps):
+            x_pos = x_0 + x_spacing*step_num
+            y_pos = y_0 + y_spacing*step_num
+            positions.append((x_pos, y_pos))
+
+            Stage.set_x_position(x_pos)
+            Stage.set_y_position(y_0)
+            Stage.set_z_position(z_0)
+            Stage.wait_for_xy_stage()
+            Stage.wait_for_z_stage()
+            Camera.snap_image()
+            image = pycro.pop_next_image().get_raw_pixels()
+            images.append(image)
+        
+        return stitch.stitch_images(images, positions)
+        
+    
+    def get_region_1_position(self, capillary_image):
+        image = skimage.exposure.rescale_intensity(capillary_image)
+        std = np.std(image)
+        median = np.median(image)
+        threshold = median - 1.5*std
+        threshed = capillary_image < threshold
+        #Area is somewhat arbitrary, but should be larger than "hole" caused by
+        #bright pixels in swim bladder, usually around 10000
+        filled = morphology.remove_small_holes(threshed, 10000)
+        labeled = measure.label(filled)
+        objects = [o for o in measure.regionprops(labeled) if o.eccentricity < 0.95 and o.area > 100000]
+        centroids = [o.centroid for o in objects]
+        #If more than just the eye and swim bladder are detected (ie, if fish is on its 
+        #side and there are two eyes)
+        if len(centroids) > 2:
+            
+
+
+
+
+    def remove_multiple_eyes(self):
+        distance = 100
+        while distance <= 300:
+            while len(objects) > 2:
+                centroids = []
+                for o in objects:
+                    for centroid in centroids:
+                        #removes element if its x distance to other objects is small,
+                        #ie if two eyes are next to each other
+                        if abs(centroid[1] - o.centroid[1]) < distance:
+                            objects.remove(o)
+                    else:
+                        centroids.append(o.centroid)
+                distance += 25
+
+    
