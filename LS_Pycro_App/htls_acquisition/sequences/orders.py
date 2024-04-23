@@ -1,16 +1,16 @@
+import copy
 import time
 import numpy as np
 import logging
 import pathlib
 from abc import ABC, abstractmethod
-from copy import deepcopy
 
 from LS_Pycro_App.acquisition.views.py import AcqDialog
-from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings, Region
+from LS_Pycro_App.htls_acquisition.models.htls_settings import HTLSSettings, Region, Fish
 from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
 from LS_Pycro_App.acquisition.sequences.imaging import ImagingSequence, Snap, Video, SpectralVideo, ZStack, SpectralZStack
-from LS_Pycro_App.hardware import Stage, Camera
-from LS_Pycro_App.utils import dir_functions, exceptions, pycro, fish_detection
+from LS_Pycro_App.hardware import Stage, Camera, Pump
+from LS_Pycro_App.utils import dir_functions, exceptions, pycro, fish_detection, constants
 from LS_Pycro_App.utils.pycro import core, studio
 
 
@@ -44,6 +44,7 @@ class HTLSSequence():
     # to avoid inconsistent intervals between timepoints.
     TIME_DIALOG_UPDATE_DELAY_S = .01
     _DETECT_TIMEOUT_S = 300
+    _REGION_OVERLAP = 0.1
 
     @abstractmethod
     def run(self):
@@ -52,7 +53,7 @@ class HTLSSequence():
         """
         pass
 
-    def __init__(self, acq_settings: AcqSettings, acq_dialog: AcqDialog,
+    def __init__(self, acq_settings: HTLSSettings, acq_dialog: AcqDialog,
                  abort_flag: exceptions.AbortFlag, acq_directory: AcqDirectory):
         self._logger = logging.getLogger(self._get_name())
         #deepcopy so that if GUI is changed during acquisition is in progress, won't change running acquisition
@@ -144,104 +145,75 @@ class HTLSSequence():
         self._update_acq_status(f"Acquiring fish {fish_num + 1}")
 
     def acquire_fish(self):
-        fish_num = 0
-        time_no_fish = 0
-        Camera.set_binning(2)
+        Camera.set_binning(Camera.DETECTION_BINNING)
         Camera.set_exposure(Camera.DETECTION_EXPOSURE)
         bg_image = self._get_bg_image()
         bg_image_mean = np.mean(bg_image)
         bg_image_std = np.std(bg_image)
+        x_step_size = (1-HTLSSequence._REGION_OVERLAP)*core.get_image_width()*core.get_pixel_size_um()
+        fish_num = 0
+        time_no_fish_s = 0
         while fish_num < self._acq_settings.num_fish:
-            pump.set_port(PumpPort.O)
-            pump.set_speed(pump.ACQUIRE_SPEED)
-            pump.set_zero()
-            detect_start_time = time.time()
+            self._update_acq_status("Initializing camera")
+            Camera.set_binning(Camera.DETECTION_BINNING)
+            Camera.set_exposure(Camera.DETECTION_EXPOSURE)
+            self._update_acq_status("Starting pump")
+            Pump.set_port("O")
+            Pump.set_speed(Pump.DEFAULT_SPEED)
+            Pump.set_velocity(Pump.DETECTION_VELOCITY)
+            Pump.set_zero()
+            self._update_acq_status("Waiting for fish")
             while True:
-                if not fish_detection.fish_detected():
-                    time.sleep(Camera.DETECTION_EXPOSURE)
-                elif time.time() - detect_start_time > HTLSSequence._DETECT_TIMEOUT_S:
-                    raise exceptions.DetectionTimeoutException
                 self._abort_check()
-            fish_x_position = fish_detection.get_region_1_x()
-            Stage.set_x_position(fish_x_position)
-            self.rotate_fish()
-            self.region.x_pos = Stage.get_x_position()
-            self.region.y_pos = Stage.get_y_position()
-            self.region.z_pos = Stage.get_z_position()
+                Camera.snap_image()
+                image = pycro.pop_next_image().get_raw_pixels()
+                if fish_detection.fish_detected(image, bg_image_std, bg_image_mean):
+                    self._update_acq_status("Fish found")
+                    break
+                else:
+                    time.sleep(Camera.DETECTION_EXPOSURE)
+                    time_no_fish_s += Camera.DETECTION_EXPOSURE*constants.MS_TO_S
+                    if time_no_fish_s > HTLSSequence._DETECT_TIMEOUT_S:
+                        raise exceptions.DetectionTimeoutException
+            try:
+                self._update_acq_status("Finding fish position")
+                x_offset = fish_detection.get_region_1_x_offset(start_pos, end_pos, x_step_size)
+            except (exceptions.BubbleException, exceptions.WeirdFishException):
+                continue
+            Camera.set_binning(Camera.DEFAULT_BINNING)
+            dx = end_pos[0] - start_pos[0]
+            dy = end_pos[1] - start_pos[1]
+            dz = end_pos[2] - start_pos[2]
+            x_stage_dir = 1 if start_pos[1] <= end_pos[0] else -1
+            x_0 = start_pos[0] + x_stage_dir*abs(x_offset)
+            init_factor = (x_0 - np.mean((start_pos[0], end_pos[0])))/dx + 0.5
+            y_0 = init_factor*dy + start_pos[1]
+            z_0 = init_factor*dz + start_pos[2]
+            step_factor = x_step_size/abs(dx)
+            x_incr = x_step_size*x_stage_dir
+            y_incr = step_factor*dy
+            z_incr = step_factor*dz
+            for region_num in range(self._acq_settings.num_regions):
+                region = copy.deepcopy(self._acq_settings.region)
+                region.x_pos = x_0 + region_num*x_incr
+                region.y_pos = y_0 + region_num*y_incr
+                region.z_pos = z_0 + region_num*z_incr
+                Stage.set_x_position(region.x_pos)
+                Stage.set_y_position(region.y_pos)
+                Stage.get_z_position(region.z_pos)
+                if region.z_stack_enabled:
+                    self._update_acq_status("Determining z-stack positions")
+                    self.set_z_stack_pos(region)
+                self._run_imaging_sequences(region)
             self._acq_directory.set_fish_num(fish_num + 1)
-            self._run_imaging_sequences(self.region)
             fish_num += 1
+
+    def set_z_stack_pos(region: Region):
+        if region.z_stack_channel_list:
+            channel = region.z_stack_channel_list[0]
+            pycro.set_channel(channel)
+
 
     def _get_bg_image(self) -> np.ndarray:
         Camera.snap_image()
         return pycro.pop_next_image().get_raw_pixels()
-    
-    def get_capillary_image(self):
-
-        x_0 = -8320
-        y_0 = -2443
-        z_0 = -2642
-        x_1 = 10237
-
-        pixel_size = core.get_pixel_size_um()
-        image_width_um = pixel_size*core.get_image_width()
-        #0.90 provides 10% overlap for stitched image
-        x_spacing = 0.9*image_width_um
-        num_steps = int(np.ceil(np.abs((x_1-x_0)/x_spacing)))
-        y_spacing = (y_1-y_0)/num_steps
-
-        images = []
-        positions = []
-        for step_num in range(num_steps):
-            x_pos = x_0 + x_spacing*step_num
-            y_pos = y_0 + y_spacing*step_num
-            positions.append((x_pos, y_pos))
-
-            Stage.set_x_position(x_pos)
-            Stage.set_y_position(y_0)
-            Stage.set_z_position(z_0)
-            Stage.wait_for_xy_stage()
-            Stage.wait_for_z_stage()
-            Camera.snap_image()
-            image = pycro.pop_next_image().get_raw_pixels()
-            images.append(image)
-        
-        return stitch.stitch_images(images, positions)
-        
-    
-    def get_region_1_position(self, capillary_image):
-        image = skimage.exposure.rescale_intensity(capillary_image)
-        std = np.std(image)
-        median = np.median(image)
-        threshold = median - 1.5*std
-        threshed = capillary_image < threshold
-        #Area is somewhat arbitrary, but should be larger than "hole" caused by
-        #bright pixels in swim bladder, usually around 10000
-        filled = morphology.remove_small_holes(threshed, 10000)
-        labeled = measure.label(filled)
-        objects = [o for o in measure.regionprops(labeled) if o.eccentricity < 0.95 and o.area > 100000]
-        centroids = [o.centroid for o in objects]
-        #If more than just the eye and swim bladder are detected (ie, if fish is on its 
-        #side and there are two eyes)
-        if len(centroids) > 2:
-            
-
-
-
-
-    def remove_multiple_eyes(self):
-        distance = 100
-        while distance <= 300:
-            while len(objects) > 2:
-                centroids = []
-                for o in objects:
-                    for centroid in centroids:
-                        #removes element if its x distance to other objects is small,
-                        #ie if two eyes are next to each other
-                        if abs(centroid[1] - o.centroid[1]) < distance:
-                            objects.remove(o)
-                    else:
-                        centroids.append(o.centroid)
-                distance += 25
-
-    
