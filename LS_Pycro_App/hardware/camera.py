@@ -141,6 +141,8 @@ class Hamamatsu(Camera):
     """
     MAX_EXPOSURE = 2000
     MIN_EXPOSURE = .010
+    DEFAULT_BINNING = 1
+    DETECTION_BINNING = 2
     DETECTION_EXPOSURE = 10
 
     #Hamamatsu property names
