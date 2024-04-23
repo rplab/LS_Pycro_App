@@ -3,9 +3,9 @@ import skimage
 from skimage import measure, morphology
 import skimage.measure
 
-from hardware import Camera, Stage
-from utils import pycro, stitch, exceptions
-from utils.pycro import core
+from LS_Pycro_App.hardware import Camera, Stage
+from LS_Pycro_App.utils import pycro, stitch, exceptions
+from LS_Pycro_App.utils.pycro import core
 
 
 HOLE_AREA_UM = 4500
@@ -14,6 +14,7 @@ SAME_FEATURE_MAX_D = 300
 ECCENTRICITY_LIMIT = 0.95
 NUM_FEATURES = 2
 STD_FACTOR = 1.6
+DX_FACTOR = 0.3
 
 
 def wait_for_fish(bg_image: np.ndarray):
@@ -26,59 +27,58 @@ def wait_for_fish(bg_image: np.ndarray):
         if np.mean(image) < bg_image_mean - bg_image_std:
             return True
         
-def get_capillary_image(start_pos: tuple[float, float, float], 
-                        end_pos: tuple[float, float, float]):
-
-        x_0 = start_pos[0]
-        y_0 = start_pos[1]
-        z_0 = start_pos[2]
-        x_1 = end_pos[0]
-        y_1 = end_pos[1]
-        z_1 = end_pos[2]
-
-        pixel_size = core.get_pixel_size_um()
-        image_width_um = pixel_size*core.get_image_width()
-        #0.90 provides 10% overlap for stitched image
-        x_spacing = 0.9*image_width_um
-        num_steps = int(np.ceil(np.abs((x_1-x_0)/x_spacing)))
-        y_spacing = (y_1-y_0)/num_steps
-
+def get_capillary_image(stitched_positions):
         images = []
-        positions = []
-        for step_num in range(num_steps):
-            x_pos = x_0 + x_spacing*step_num
-            y_pos = y_0 + y_spacing*step_num
-            positions.append((x_pos, y_pos))
-
-            Stage.set_x_position(x_pos)
-            Stage.set_y_position(y_0)
-            Stage.set_z_position(z_0)
+        for pos in stitched_positions:
+            Stage.set_x_position(pos[0])
+            Stage.set_y_position(pos[1])
+            Stage.set_z_position(pos[2])
             Stage.wait_for_xy_stage()
             Stage.wait_for_z_stage()
             Camera.snap_image()
             image = pycro.pop_next_image().get_raw_pixels()
             images.append(image)
-        
-        return stitch.stitch_images(images, positions)
-        
+        return stitch.stitch_images(images, stitched_positions)
+
+def get_stitched_positions(start_pos, end_pos, x_step_size):
+    #0.90 provides 10% overlap for stitched image
+    num_steps = int(np.ceil(np.abs((end_pos[0]-start_pos[0])/x_step_size)))
+    y_spacing = (end_pos[1]-start_pos[1])/num_steps
+    z_spacing = (end_pos[2]-start_pos[2])/num_steps
+    positions = []
+    for step_num in range(num_steps):
+        x_pos = start_pos[0] + x_step_size*step_num
+        y_pos = start_pos[1] + y_spacing*step_num
+        z_pos = start_pos[2] + z_spacing*step_num
+        positions.append((x_pos, y_pos, z_pos))
+    return positions
     
-def get_region_1_x_pos(capillary_image):
-    image = skimage.exposure.rescale_intensity(capillary_image)
-    std = np.std(image)
-    median = np.median(image)
-    threshold = median - STD_FACTOR*std
-    threshed = capillary_image < threshold
-    #Removes holes in objects (such a-s from bright pixels in swim bladder). Area argument here
-    #is somewat
-    filled = morphology.remove_small_holes(threshed, core.get_pixel_size_um()*HOLE_AREA_UM)
-    labeled = measure.label(filled)
-    features = [f for f in measure.regionprops(labeled) if f.eccentricity < ECCENTRICITY_LIMIT and f.area > core.get_pixel_size_um()*FEATURE_AREA_UM]
-    #If more than just the eye and swim bladder are detected (ie, if fish is on its 
-    #side and there are two eyes)
+def get_region_1_x_offset(start_pos, end_pos, x_step_size):
+    positions = get_stitched_positions(start_pos, end_pos, x_step_size)
+    capillary_image = get_capillary_image(positions)
+    features = get_features(capillary_image)
+    #If no features are found, assume system was triggered by a bubble or some other dark object
+    #that isn't a fish.
     if not features:
-        raise exceptions.BubbleException
+        raise exceptions.BubbleException("Bubble detected. Skipping.")
     centroids = get_centroids(features)
-    x_pos = get_x_pos_from_centroids(centroids)
+    return get_x_offset_um(centroids)
+
+def get_features(capillary_image):
+    std = np.std(capillary_image)
+    median = np.median(capillary_image)
+    #threshold value. Uses median and std for consistency with different exposure
+    threshold = median - STD_FACTOR*std
+    #thresholded image
+    threshed = capillary_image < threshold
+    #Removes holes in objects (such as from bright pixels in swim bladder). Area argument here
+    #is somewhat arbitrary, but should be large enough for holes in swim bladder to be filled.
+    filled = morphology.remove_small_holes(threshed, core.get_pixel_size_um()*HOLE_AREA_UM)
+    #label image so we can extract properties using skimage regionprops
+    labeled = measure.label(filled)
+    #creates list of region properties that meet criteria for fish features. Eccentricity to
+    #ensure objects are round and area to ensure they're the correct size.
+    return [f for f in measure.regionprops(labeled) if f.eccentricity < ECCENTRICITY_LIMIT and f.area > core.get_pixel_size_um()*FEATURE_AREA_UM]
             
 def get_centroids(features: list[measure._regionprops._RegionProperties]):
     centroids = [f.centroid for f in features]
@@ -97,13 +97,25 @@ def get_centroids(features: list[measure._regionprops._RegionProperties]):
         raise exceptions.WeirdFishException("Detection has found three or more features. Skipping.")
 
 
-def get_x_pos_from_centroids(centroids: list[tuple[float, float]]):
+def get_x_offset_um(centroids: list[tuple[float, float]]):
     x_positions = [c[1] for c in centroids]
-    dx = abs(x_positions[1] - x_positions[0])
-    x_mean = np.mean(x_positions)
+    pixel_size = core.get_pixel_size_um()
+    #distance between centroids in um
+    dx_um = abs(x_positions[1] - x_positions[0])*pixel_size
+    #mean of centroids in um relative to stage position at x=0 in
+    #capillary image.
+    x_mean_um = np.mean(x_positions)*pixel_size
+    #offset to make position centered instead of on the left side of the camera
+    #field.
+    center_offset = -0.5*core.get_image_width()*pixel_size
+    #offset of region 1 position from mean position.
+    region_1_offset = -dx_um*DX_FACTOR
+    #offset being x_mean_um would move stage so that left side of camera field
+    #goes to x_mean_um position since offset is based on number of pixels in
+    #image, and left side of image is x=0. Therefore, to center, add 1/2 image
+    #width. Then, add region_1_offset to center stage at correct region 1 position.
+    return x_mean_um + center_offset + region_1_offset
 
 
-def fish_detected(bg_image_mean, bg_image_std):
-    Camera.snap_image()
-    image = pycro.pop_next_image().get_raw_pixels()
+def fish_detected(image, bg_image_std, bg_image_mean):
     return np.mean(image) < bg_image_mean - bg_image_std
