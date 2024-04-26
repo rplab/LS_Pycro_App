@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'C:\Users\Raghu\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\htls_acquisition\views\ui\HTLSAcqSettingsDialog.ui'
+# Form implementation generated from reading ui file 'C:\Users\marim\Desktop\LS_Pycro_App\LS_Pycro_App\views\ui\HTLSAcqSettingsDialog.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.10
 #

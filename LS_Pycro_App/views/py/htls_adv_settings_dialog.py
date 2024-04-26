@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'C:\Users\Raghu\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\htls_acquisition\views\ui\HTLSAdvSettingsDialog.ui'
+# Form implementation generated from reading ui file 'C:\Users\marim\Desktop\LS_Pycro_App\LS_Pycro_App\views\ui\HTLSAdvSettingsDialog.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.10
 #
@@ -14,7 +14,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_HTLSAdvSettingsDialog(object):
     def setupUi(self, HTLSAdvSettingsDialog):
         HTLSAdvSettingsDialog.setObjectName("HTLSAdvSettingsDialog")
-        HTLSAdvSettingsDialog.resize(437, 249)
+        HTLSAdvSettingsDialog.resize(437, 381)
         self.z_stack_exp_unit_label = QtWidgets.QLabel(HTLSAdvSettingsDialog)
         self.z_stack_exp_unit_label.setGeometry(QtCore.QRect(190, 120, 21, 16))
         self.z_stack_exp_unit_label.setAlignment(QtCore.Qt.AlignCenter)
@@ -86,6 +86,34 @@ class Ui_HTLSAdvSettingsDialog(object):
         self.custom_exposure_check_box = QtWidgets.QCheckBox(HTLSAdvSettingsDialog)
         self.custom_exposure_check_box.setGeometry(QtCore.QRect(30, 90, 141, 20))
         self.custom_exposure_check_box.setObjectName("custom_exposure_check_box")
+        self.end_videos_check_box = QtWidgets.QCheckBox(HTLSAdvSettingsDialog)
+        self.end_videos_check_box.setGeometry(QtCore.QRect(160, 290, 141, 20))
+        self.end_videos_check_box.setObjectName("end_videos_check_box")
+        self.end_videos_exposure_label = QtWidgets.QLabel(HTLSAdvSettingsDialog)
+        self.end_videos_exposure_label.setGeometry(QtCore.QRect(130, 350, 81, 20))
+        self.end_videos_exposure_label.setObjectName("end_videos_exposure_label")
+        self.end_videos_num_frames_label = QtWidgets.QLabel(HTLSAdvSettingsDialog)
+        self.end_videos_num_frames_label.setGeometry(QtCore.QRect(110, 320, 101, 20))
+        self.end_videos_num_frames_label.setObjectName("end_videos_num_frames_label")
+        self.end_videos_label = QtWidgets.QLabel(HTLSAdvSettingsDialog)
+        self.end_videos_label.setGeometry(QtCore.QRect(160, 270, 101, 20))
+        self.end_videos_label.setAlignment(QtCore.Qt.AlignCenter)
+        self.end_videos_label.setObjectName("end_videos_label")
+        self.end_videos_num_frames_line_edit = QtWidgets.QLineEdit(HTLSAdvSettingsDialog)
+        self.end_videos_num_frames_line_edit.setGeometry(QtCore.QRect(210, 320, 61, 20))
+        self.end_videos_num_frames_line_edit.setObjectName("end_videos_num_frames_line_edit")
+        self.end_videos_exposure_line_edit = QtWidgets.QLineEdit(HTLSAdvSettingsDialog)
+        self.end_videos_exposure_line_edit.setGeometry(QtCore.QRect(210, 350, 61, 20))
+        self.end_videos_exposure_line_edit.setObjectName("end_videos_exposure_line_edit")
+        self.line_8 = QtWidgets.QFrame(HTLSAdvSettingsDialog)
+        self.line_8.setGeometry(QtCore.QRect(0, 250, 491, 20))
+        font = QtGui.QFont()
+        font.setPointSize(8)
+        self.line_8.setFont(font)
+        self.line_8.setFrameShadow(QtWidgets.QFrame.Plain)
+        self.line_8.setLineWidth(4)
+        self.line_8.setFrameShape(QtWidgets.QFrame.HLine)
+        self.line_8.setObjectName("line_8")
 
         self.retranslateUi(HTLSAdvSettingsDialog)
         QtCore.QMetaObject.connectSlotsByName(HTLSAdvSettingsDialog)
@@ -116,6 +144,13 @@ class Ui_HTLSAdvSettingsDialog(object):
         self.backup_label.setText(_translate("HTLSAdvSettingsDialog", "<html><head/><body><p><span style=\" font-weight:600;\">Backup Directory</span></p></body></html>"))
         self.custom_exposure_check_box.setWhatsThis(_translate("HTLSAdvSettingsDialog", "<html><head/><body><p>If checked, allows user to set custom exposure time for z-stack.</p><p>Due to how the camera triggering system works, when this option is enabled, only certain exposure time ranges are allowed.</p><p>For example, if stage speed is 30 um/s, the maximum exposure time is ~23 ms. See Hamamtsu edge trigger mode for more information.</p><p><br/></p></body></html>"))
         self.custom_exposure_check_box.setText(_translate("HTLSAdvSettingsDialog", "Enable Custom Exposure"))
+        self.end_videos_check_box.setWhatsThis(_translate("HTLSAdvSettingsDialog", "<html><head/><body><p>If enabled, will take a video with the settings given at the end of an acquisition (after all time points have been acquired) at position 1 of each sample with imaging enabled.</p><p> End videos are intended to be taken at the end of a time series to ensure fish are still alive at the end. Will be saved in the Acquisition folder under the name &quot;end videos.&quot;</p><p><br/></p></body></html>"))
+        self.end_videos_check_box.setText(_translate("HTLSAdvSettingsDialog", "Enable End Videos"))
+        self.end_videos_exposure_label.setText(_translate("HTLSAdvSettingsDialog", "Exposure Time:"))
+        self.end_videos_num_frames_label.setText(_translate("HTLSAdvSettingsDialog", "Number of Frames:"))
+        self.end_videos_label.setText(_translate("HTLSAdvSettingsDialog", "<html><head/><body><p><span style=\" font-weight:600;\">End Videos</span></p></body></html>"))
+        self.end_videos_num_frames_line_edit.setWhatsThis(_translate("HTLSAdvSettingsDialog", "<html><head/><body><p>Exposure time for use in Z-stack. </p><p>If spectral Z-stack is enabled, exposure time is only limited by camera\'s min/max exposure time. </p><p>If both spectral Z-stack and custom exposure are disabled, exposure time will be ~ 1/stage_speed</p><p>If spectral Z-stack is disabaled but custom exposure is enabled, allowed exposure time is determined by camera\'s allowed exposure in external trigger mode. See Hamamatsu documentation for more details.</p></body></html>"))
+        self.end_videos_exposure_line_edit.setWhatsThis(_translate("HTLSAdvSettingsDialog", "<html><head/><body><p>Exposure time for use in Z-stack. </p><p>If spectral Z-stack is enabled, exposure time is only limited by camera\'s min/max exposure time. </p><p>If both spectral Z-stack and custom exposure are disabled, exposure time will be ~ 1/stage_speed</p><p>If spectral Z-stack is disabaled but custom exposure is enabled, allowed exposure time is determined by camera\'s allowed exposure in external trigger mode. See Hamamatsu documentation for more details.</p></body></html>"))
 
 
 if __name__ == "__main__":

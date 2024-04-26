@@ -221,13 +221,3 @@ class Ui_GalvoDialog(object):
         self.lsrm_upper_unit_label.setText(_translate("GalvoDialog", "V"))
         self.lsrm_set_upper_button.setText(_translate("GalvoDialog", "Set"))
         self.lsrm_upper_label.setText(_translate("GalvoDialog", "Upper Limit"))
-
-
-if __name__ == "__main__":
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    GalvoDialog = QtWidgets.QDialog()
-    ui = Ui_GalvoDialog()
-    ui.setupUi(GalvoDialog)
-    GalvoDialog.show()
-    sys.exit(app.exec_())
