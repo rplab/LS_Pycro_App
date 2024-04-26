@@ -14,7 +14,7 @@ SAME_FEATURE_MAX_D = 300
 ECCENTRICITY_LIMIT = 0.95
 NUM_FEATURES = 2
 STD_FACTOR = 1.6
-DX_FACTOR = 0.3
+DX_FACTOR = 0.2
 
 
 def wait_for_fish(bg_image: np.ndarray):
@@ -27,7 +27,8 @@ def wait_for_fish(bg_image: np.ndarray):
         if np.mean(image) < bg_image_mean - bg_image_std:
             return True
         
-def get_capillary_image(stitched_positions):
+        
+def get_stitched_image(stitched_positions):
         images = []
         for pos in stitched_positions:
             Stage.set_x_position(pos[0])
@@ -35,34 +36,40 @@ def get_capillary_image(stitched_positions):
             Stage.set_z_position(pos[2])
             Stage.wait_for_xy_stage()
             Stage.wait_for_z_stage()
+            #Just to make sure bright field is being used.
+            pycro.set_channel(pycro.BF_CHANNEL)
             Camera.snap_image()
             image = pycro.pop_next_image().get_raw_pixels()
             images.append(image)
-        return stitch.stitch_images(images, stitched_positions)
+        return stitch.stitch_images(images, stitched_positions, x_stage_polarity=-1)
+
 
 def get_stitched_positions(start_pos, end_pos, x_step_size):
-    #0.90 provides 10% overlap for stitched image
-    num_steps = int(np.ceil(np.abs((end_pos[0]-start_pos[0])/x_step_size)))
-    y_spacing = (end_pos[1]-start_pos[1])/num_steps
-    z_spacing = (end_pos[2]-start_pos[2])/num_steps
+    num_steps = int(np.ceil(abs(end_pos[0]-start_pos[0])/x_step_size))
+    #all increments are just linear functions using end positions and num steps
+    x_incr = (end_pos[0]-start_pos[0])/num_steps
+    y_incr = (end_pos[1]-start_pos[1])/num_steps
+    z_incr = (end_pos[2]-start_pos[2])/num_steps
     positions = []
     for step_num in range(num_steps):
-        x_pos = start_pos[0] + x_step_size*step_num
-        y_pos = start_pos[1] + y_spacing*step_num
-        z_pos = start_pos[2] + z_spacing*step_num
+        x_pos = start_pos[0] + x_incr*step_num
+        y_pos = start_pos[1] + y_incr*step_num
+        z_pos = start_pos[2] + z_incr*step_num
         positions.append((x_pos, y_pos, z_pos))
     return positions
+
     
 def get_region_1_x_offset(start_pos, end_pos, x_step_size):
     positions = get_stitched_positions(start_pos, end_pos, x_step_size)
-    capillary_image = get_capillary_image(positions)
+    capillary_image = get_stitched_image(positions)
     features = get_features(capillary_image)
     #If no features are found, assume system was triggered by a bubble or some other dark object
     #that isn't a fish.
     if not features:
-        raise exceptions.BubbleException("Bubble detected. Skipping.")
+        raise exceptions.BubbleException
     centroids = get_centroids(features)
-    return get_x_offset_um(centroids)
+    return get_x_offset_um(centroids, capillary_image.shape, left_side_entry=False)
+
 
 def get_features(capillary_image):
     std = np.std(capillary_image)
@@ -80,6 +87,7 @@ def get_features(capillary_image):
     #ensure objects are round and area to ensure they're the correct size.
     return [f for f in measure.regionprops(labeled) if f.eccentricity < ECCENTRICITY_LIMIT and f.area > core.get_pixel_size_um()*FEATURE_AREA_UM]
             
+
 def get_centroids(features: list[measure._regionprops._RegionProperties]):
     centroids = [f.centroid for f in features]
     while len(centroids) > NUM_FEATURES:
@@ -92,29 +100,40 @@ def get_centroids(features: list[measure._regionprops._RegionProperties]):
                 #break to force check number of elements in centroids and continue 
                 #removal if necessary
                 break
-    #raises exception if distance is too large to be features in same position
-    else:
-        raise exceptions.WeirdFishException("Detection has found three or more features. Skipping.")
+        #if no element was removed from centroids but len(centroids) is still
+        #greater than the number of expected features, raise exception.
+        else:
+            raise exceptions.WeirdFishException
+    #either returns list of centroids or raises exception
+    return centroids
 
 
-def get_x_offset_um(centroids: list[tuple[float, float]]):
+def get_x_offset_um(centroids: list[tuple[float, float]],
+                    stitched_image_shape: tuple[int],
+                    left_side_entry: bool = False):
     x_positions = [c[1] for c in centroids]
-    pixel_size = core.get_pixel_size_um()
-    #distance between centroids in um
-    dx_um = abs(x_positions[1] - x_positions[0])*pixel_size
-    #mean of centroids in um relative to stage position at x=0 in
-    #capillary image.
-    x_mean_um = np.mean(x_positions)*pixel_size
-    #offset to make position centered instead of on the left side of the camera
-    #field.
-    center_offset = -0.5*core.get_image_width()*pixel_size
-    #offset of region 1 position from mean position.
-    region_1_offset = -dx_um*DX_FACTOR
-    #offset being x_mean_um would move stage so that left side of camera field
-    #goes to x_mean_um position since offset is based on number of pixels in
-    #image, and left side of image is x=0. Therefore, to center, add 1/2 image
-    #width. Then, add region_1_offset to center stage at correct region 1 position.
-    return x_mean_um + center_offset + region_1_offset
+    x_mean = np.mean(x_positions)
+    #offset position is relative to the start position, which depends on which side
+    #of the image the fish entered from.
+    if left_side_entry:
+        #If fish enters from left side, offset is relative to left side of image,
+        #so the x=0 coordinate, and so just use the mean.
+        offset = x_mean
+    else:
+        #If fish comes in from the right of the stitched image, then the offset is
+        #relative to the right side of the image, not the left, so subtract
+        #mean from width of image.
+        offset = stitched_image_shape[1] - x_mean
+    #In both cases, using only the mean will place the centroid at the edge of the screen
+    #with the eye in the field of view. Since region 1 is where the swim bladder is 
+    #in the field of view, we subtract the camera image width to move to the other side.
+    offset += -core.get_image_width()
+    #We make one more adjustmet to the offset to correctly move the stage so that we're
+    #looking at region 1 of the fish, based on the distance between the x coords of the
+    #centroids.
+    dx = abs(x_positions[1] - x_positions[0])
+    offset += -DX_FACTOR*dx
+    return offset*core.get_pixel_size_um()
 
 
 def fish_detected(image, bg_image_std, bg_image_mean):
