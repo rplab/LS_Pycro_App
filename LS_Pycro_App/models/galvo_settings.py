@@ -87,12 +87,8 @@ class GalvoSettings(object):
         self._lsrm_framerate = 15
         self._lsrm_laser_delay = 0.500
         self._lsrm_cam_delay = 0.
-        self.lsrm_ili = 1/(self.get_lsrm_sample_rate())
         self._lsrm_num_lines = 30
         self.init_from_config()
-
-    def get_lsrm_sample_rate(self):
-        return self.LSRM_NUM_SAMPLES*(self.lsrm_framerate + 1)
 
     @property
     def focus(self):
@@ -183,6 +179,14 @@ class GalvoSettings(object):
     def lsrm_num_lines(self, value):
         self._lsrm_num_lines = int(general_functions.value_in_range(
             value, self.NUM_LINES_BOT_LIMIT, self.NUM_LINES_TOP_LIMIT))
+        
+    @property
+    def lsrm_sample_rate(self):
+        return self.LSRM_NUM_SAMPLES*(self.lsrm_framerate + 1)
+
+    @property
+    def lsrm_ili(self):
+        return 1/self.lsrm_sample_rate
 
     def write_to_config(self):
         user_config.write_class(self)

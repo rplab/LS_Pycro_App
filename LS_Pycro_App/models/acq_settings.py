@@ -495,9 +495,9 @@ class AdvSettings():
     """
     def __init__(self):
         self._z_stack_exposure: float = 33.
-        self._z_stack_stage_speed: int = 30
-        self._spectral_z_stack_enabled: bool = False
         self._end_videos_exposure = 20.
+        self.spectral_z_stack_enabled: bool = False
+        self.z_stack_stage_speed: int = 30
         self.speed_list: list[int] = self.get_speed_list()
         self.spectral_video_enabled: bool = False
         self.lsrm_enabled: bool = False
@@ -511,56 +511,12 @@ class AdvSettings():
     
     @property
     def z_stack_exposure(self):
+        self._z_stack_exposure = self._get_z_stack_exposure(self._z_stack_exposure)
         return self._z_stack_exposure
     
     @z_stack_exposure.setter
     def z_stack_exposure(self, value):
-        if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
-            if not self._spectral_z_stack_enabled:
-                if not self._edge_trigger_enabled:
-                    self._z_stack_exposure = round((1/(self._z_stack_stage_speed))*constants.S_TO_MS, 3)
-                else:
-                    max_exposure = Camera.get_max_edge_trigger_exposure(self._z_stack_stage_speed)
-                    self._z_stack_exposure = round(general_functions.value_in_range(value, Camera.MIN_EXPOSURE, max_exposure), 3)
-            else:
-                self._z_stack_exposure = max(value, Camera.MIN_EXPOSURE)
-        elif Camera == LS_Pycro_App.hardware.camera.Pco:
-            if not self._spectral_z_stack_enabled:
-                #Maximum exp when performing continuous z-stack is floor(1/z_stack_speed) due to how the triggering works. 
-                #This makes it so that if continuous z-stack is enabled and an exp time greater than this value is entered, 
-                #it is corrected.
-                max_exposure = np.floor((1/(self._z_stack_stage_speed))*constants.S_TO_MS)
-                self._z_stack_exposure = round(general_functions.value_in_range(value, Camera.MIN_EXPOSURE, max_exposure), 3)
-            else:
-                self._z_stack_exposure =general_functions.value_in_range(value, Camera.MIN_EXPOSURE, Camera.MAX_EXPOSURE)
-                
-    @property
-    def edge_trigger_enabled(self):
-        return self._edge_trigger_enabled
-
-    @edge_trigger_enabled.setter
-    def edge_trigger_enabled(self, value):
-        self._edge_trigger_enabled = value
-        self.z_stack_exposure = self.z_stack_exposure
-
-    @property
-    def spectral_z_stack_enabled(self):
-        return self._spectral_z_stack_enabled
-
-    @spectral_z_stack_enabled.setter
-    def spectral_z_stack_enabled(self, value):
-        self._spectral_z_stack_enabled = value
-        #Also set z_stack_exposure because it depends on spectral_z_stack_eneabled
-        self.z_stack_exposure = self._z_stack_exposure
-
-    @property
-    def z_stack_stage_speed(self):
-        return self._z_stack_stage_speed
-
-    @z_stack_stage_speed.setter
-    def z_stack_stage_speed(self, value):
-        self._z_stack_stage_speed = value
-        self.z_stack_exposure = self._z_stack_exposure
+        self._z_stack_exposure = self._get_z_stack_exposure(value)
 
     @property
     def end_videos_exposure(self):
@@ -579,6 +535,26 @@ class AdvSettings():
             
     def write_to_config(self):
         user_config.write_class(self)
+
+    def _get_z_stack_exposure(self, value):
+        if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
+            if not self.spectral_z_stack_enabled:
+                if not self.edge_trigger_enabled:
+                    return round((1/(self.z_stack_stage_speed))*constants.S_TO_MS, 3)
+                else:
+                    max_exposure = Camera.get_max_edge_trigger_exposure(self.z_stack_stage_speed)
+                    return round(general_functions.value_in_range(value, Camera.MIN_EXPOSURE, max_exposure), 3)
+            else:
+                return max(value, Camera.MIN_EXPOSURE)
+        elif Camera == LS_Pycro_App.hardware.camera.Pco:
+            if not self.spectral_z_stack_enabled:
+                #Maximum exp when performing continuous z-stack is floor(1/z_stack_speed) due to how the triggering works. 
+                #This makes it so that if continuous z-stack is enabled and an exp time greater than this value is entered, 
+                #it is corrected.
+                max_exposure = np.floor((1/(self.z_stack_stage_speed))*constants.S_TO_MS)
+                return round(general_functions.value_in_range(value, Camera.MIN_EXPOSURE, max_exposure), 3)
+            else:
+                return general_functions.value_in_range(value, Camera.MIN_EXPOSURE, Camera.MAX_EXPOSURE)
 
 
 class AcqOrder(Enum):
@@ -602,6 +578,7 @@ class AcqOrder(Enum):
     TIME_SAMP = 1
     SAMP_TIME = 2
     POS_TIME = 3
+
 
 class AcqSettings():
     """
@@ -670,16 +647,7 @@ class AcqSettings():
         self.time_points_interval_sec: int = 0
         self.directory: str = "C:/"
         self.researcher: str = ""
-        self._num_fish: int = self.num_fish
         self._num_time_points: int = 1
-        self._image_width: int = core.get_image_width()
-        self._image_height: int = core.get_image_height()
-        self._bytes_per_pixel: int = core.get_bytes_per_pixel()
-        self._image_size_mb: float = self.image_size_mb
-        self._images_per_time_point: int = 0
-        self._end_videos_total_num_frames: int = 0
-        self._total_num_images: int = 0
-        self._size_mb: float = 0
         self.init_from_config()
 
     @property
@@ -689,7 +657,6 @@ class AcqSettings():
     @channel_order_list.setter
     def channel_order_list(self, value):
         self._channel_order_list = value
-        self.reorder_channel_lists()
         AcqSettings._channel_order_list = value
 
     @property
@@ -705,28 +672,23 @@ class AcqSettings():
     
     @property
     def num_fish(self):
-        self._num_fish = len(self.fish_list)
-        return self._num_fish
+        return len(self.fish_list)
 
     @property
     def image_width(self):
-        self._image_width = core.get_image_width()
-        return self._image_width
+        return core.get_image_width()
     
     @property
     def image_height(self):
-        self._image_height = core.get_image_height()
-        return self._image_height
+        return core.get_image_height()
 
     @property
     def bytes_per_pixel(self):
-        self._bytes_per_pixel = core.get_bytes_per_pixel()
-        return self._bytes_per_pixel
+        return core.get_bytes_per_pixel()
 
     @property
     def image_size_mb(self):
-        self._image_size_mb = self.image_width*self.image_height*self.bytes_per_pixel*constants.B_TO_MB
-        return self._image_size_mb
+        return self.image_width*self.image_height*self.bytes_per_pixel*constants.B_TO_MB
     
     @property
     def images_per_time_point(self):
@@ -801,21 +763,11 @@ class AcqSettings():
             for region in fish.region_list:
                 if region.z_stack_enabled:
                     return region.z_stack_step_size
-        
-    def reorder_channel_lists(self):
-        """
-        reorders region channel lists to match channel_order_list
-        """
-        for fish in self.fish_list:
-            for region in fish.region_list:
-                self.order_from_order_list(region.snap_channel_list)
-                self.order_from_order_list(region.z_stack_channel_list)
-                self.order_from_order_list(region.video_channel_list)
 
     #config api methods
     def init_from_config(self):
         user_config.init_class(self)
-        self._init_channel_order_list()
+        self.init_channel_order_list()
         self._init_fish_list_from_config()
         
     def write_to_config(self):
@@ -879,7 +831,7 @@ class AcqSettings():
                 region.write_to_config(fish_num, region_num)
 
     #misc privates
-    def _init_channel_order_list(self):
+    def init_channel_order_list(self):
         """
         Initializes channel order list so that all channels in the core list are in the order list, since core channel
         list may change between sessions.
@@ -893,3 +845,101 @@ class AcqSettings():
             for channel in self.core_channel_list:
                 if channel not in self.channel_order_list:
                     self.channel_order_list.append(channel)
+
+
+class HTLSSettings():
+    """
+    Data class that stores properties that apply to the entire image acquisition. Also includes list that holds Fish
+    instances, which are the main objects (along with Region instances) used during an image acquisition.
+
+    ## Class Attributes:
+
+    #### image_width : int
+        width of image in pixels according to MM
+
+    #### image_height : int
+        height of image in pixels according to MM
+
+    #### image_size_mb : float
+        image size according to MM (sort of). Calculatiom I use is just width*height*(bit_depth)/10**6
+
+    ## Instance Attributes:
+
+    #### fish_list : list[Fish]
+        list that holds instances of Fish.
+
+    #### adv_settings : AdvancedSettings
+        instance of AdvancedSettings
+
+    #### total_num_images : int
+        total number of images in acquisition.
+
+    #### time_points_bool : bool
+        if True, a time series based on num_time_points and time_points_interval will be enabled.
+
+    #### num_time_points : int
+        number of time points. Note that this is a property and that _num_time_points shouldnever be accessed directly.
+
+    #### time_points_interval_min : int
+        interval (in minutes) between time points in time series. If set to 0 (or if acquisition of a single time 
+        point takes longer than the interval), acquisition of the next time point will start immediately.
+
+    #### channel_order_list : list[str]
+        channel order acquisition used during acquisition. If multiple channels are selectedfor a specific type of 
+        image acquisition in a Region instance (video, snap, z-stack, etc.), the channels will be acquired in this 
+        order.
+
+    #### directory : str
+        path where acquisition is to be saved.
+    
+    #### researcher : str
+        name of researcher
+    
+    ## Instance Methods:
+
+    #### remove_fish(fish_num)
+        removes fish at given fish_num index.
+
+    #### append_blank_fish()
+        Appends new Fish() object to self.fish_list
+    """
+    NOT_CONFIG_PROPS = ["acq_settings, fish_settings, region_settings"]
+    FISH_SETTINGS_SECTION = "Fish Settings"
+    REGION_FISH_NUM = "Settings"
+
+    def __init__(self):
+        self.acq_settings: AcqSettings = AcqSettings()
+        self.fish_settings: Fish = Fish()
+        #Start off with one region so that region settings can be set
+        self.fish_settings.append_blank_region()
+        self.capillary_start_pos: list[int] = [0, 0, 0]
+        self.capillary_end_pos: list[int] = [0, 0, 0]
+        self.num_fish: int = 0
+        self.num_regions: int = 3
+        self.init_from_config()
+
+    #config api methods
+    def init_from_config(self):
+        user_config.init_class(self)
+        user_config.init_class(self.acq_settings)
+        user_config.init_class(self.fish_settings, HTLSSettings.FISH_SETTINGS_SECTION)
+        self.fish_settings.init_from_config(0)
+        self.acq_settings.init_channel_order_list()
+
+    def init_fish_settings_from_config(self):
+        user_config.init_class(self.fish_settings, HTLSSettings.FISH_SETTINGS_SECTION)
+        region_num = 0
+        while True:
+            region = Region()
+            if region.init_from_config(HTLSSettings.REGION_FISH_NUM, region_num):
+                self.fish_settings.region_list.append(region)
+            else:
+                break
+            region_num += 1 
+        
+    def write_to_config(self):
+        user_config.write_class(self)
+        user_config.write_class(self.fish_settings, HTLSSettings.FISH_SETTINGS_SECTION)
+        for region_num, region in enumerate(self.fish_settings.region_list):
+            region.write_to_config(HTLSSettings.REGION_FISH_NUM, region_num)
+        user_config.write_class(self.acq_settings)
