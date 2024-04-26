@@ -2,8 +2,11 @@ import numpy as np
 
 from LS_Pycro_App.utils.pycro import core
 
+
 def stitch_images(images: list[np.ndarray],
-                  positions: list[tuple[float, float]]
+                  positions: list[tuple[float, float]],
+                  x_stage_polarity: int = 1,
+                  y_stage_polarity: int = 1
                   ) -> np.ndarray:
     """
     Stitches images with micro-manager metadata. 
@@ -11,7 +14,6 @@ def stitch_images(images: list[np.ndarray],
     for image_num, images in enumerate(images):
         shape = core.get_image_width(), core.get_image_height()
         new_image = images[image_num]
-
         if image_num == 0:
             start_positions = positions
             pixel_size = core.get_pixel_size_um()
@@ -19,7 +21,7 @@ def stitch_images(images: list[np.ndarray],
             stitched_image = new_image
         else:
             x_offset, y_offset = _get_xy_offsets(
-                start_positions, positions, pixel_size)
+                start_positions, positions, pixel_size, x_stage_polarity, y_stage_polarity)
             stitched_image = _stitch_new_image(
                 new_image, stitched_image, x_offset, y_offset, shape, 
                 stitched_x_range, stitched_y_range)
@@ -38,15 +40,16 @@ def _init_ranges(shape: tuple[int, int]) -> tuple[list]:
 
 def _get_xy_offsets(start_positions: list[int], 
                     positions: list[int], 
-                    pixel_size: float
+                    pixel_size: float,
+                    x_stage_polarity: int = 1,
+                    y_stage_polarity: int = 1
                     ) -> tuple[int]:
     """
     Returns x and y pixel offets relative to the position of the first image
     added to the stitched image. 
     """
-    #factor of -1 because stage on Klamath is inverted
-    x_offset = -1*_get_pixel_offset(start_positions[0], positions[0], pixel_size)
-    y_offset = _get_pixel_offset(start_positions[1], positions[1], pixel_size)
+    x_offset = x_stage_polarity*_get_pixel_offset(start_positions[0], positions[0], pixel_size)
+    y_offset = y_stage_polarity*_get_pixel_offset(start_positions[1], positions[1], pixel_size)
     return x_offset, y_offset
 
 
