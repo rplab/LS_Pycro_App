@@ -6,10 +6,10 @@ from pathlib import Path
 
 from PyQt5 import QtGui, QtWidgets
 
-from LS_Pycro_App.acquisition.sequences.main import Acquisition
-from LS_Pycro_App.acquisition.models.acq_settings import Region, Fish, AcqSettings, AcqOrder
-from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
-from LS_Pycro_App.acquisition.views.py import AcqRegionsDialog, AcqOrderDialog, AcqSettingsDialog, AdvSettingsDialog, BrowseDialog
+from LS_Pycro_App.acquisition.main import CLSAcquisition
+from LS_Pycro_App.models.acq_settings import Region, Fish, AcqSettings, AcqOrder
+from LS_Pycro_App.controllers.select_controller import microscope, MicroscopeConfig
+from LS_Pycro_App.views import AcqRegionsDialog, AcqOrderDialog, AcqSettingsDialog, AdvSettingsDialog, BrowseDialog
 from LS_Pycro_App.hardware import Stage, Camera
 from LS_Pycro_App.utils import constants, exceptions
 
@@ -55,7 +55,7 @@ class AcqController(object):
         self._acq_order_dialog = AcqOrderDialog()
         self._acq_settings = AcqSettings()
         self._adv_settings = self._acq_settings.adv_settings
-        self._acquisition = Acquisition(self._acq_settings)
+        self._acquisition = CLSAcquisition(self._acq_settings)
 
         self._fish_num = 0
         self._region_num = 0
@@ -311,7 +311,8 @@ class AcqController(object):
         self._adv_settings_dialog.z_stack_spectral_check_box.setChecked(self._adv_settings.spectral_z_stack_enabled)
         self._adv_settings_dialog.stage_speed_combo_box.setCurrentText(str(self._adv_settings.z_stack_stage_speed))
         self._adv_settings_dialog.z_stack_exposure_line_edit.setText(str(self._adv_settings.z_stack_exposure))
-        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(self._adv_settings_dialog.custom_exposure_check_box.isChecked())
+        if not microscope == MicroscopeConfig.WILLAMETTE:
+            self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(self._adv_settings_dialog.custom_exposure_check_box.isChecked())
 
     def _update_adv_video_widgets(self):
         self._adv_settings_dialog.video_spectral_check_box.setChecked(self._adv_settings.spectral_video_enabled)
@@ -525,7 +526,7 @@ class AcqController(object):
         x_pos = self._region.x_pos
         y_pos = self._region.y_pos
         z_pos = self._region.z_pos
-        if x_pos and y_pos and z_pos:
+        if None not in (x_pos, y_pos, z_pos):
             with contextlib.suppress(exceptions.HardwareException):
                 Stage.move_stage(x_pos, y_pos, z_pos)
         self._update_dialogs()
@@ -884,7 +885,7 @@ class AcqController(object):
         # Update before starting acquisition to update all values beforehand.
         self._update_dialogs()
         if not self._acquisition.is_alive():
-            self._acquisition = Acquisition(self._acq_settings)
+            self._acquisition = CLSAcquisition(self._acq_settings)
         self._acquisition._acq_dialog.show()
         self._acquisition._acq_dialog.activateWindow()
         self._acquisition.start()

@@ -6,14 +6,13 @@ from pathlib import Path
 
 from PyQt5 import QtGui, QtWidgets
 
-from LS_Pycro_App.acquisition.models.acq_settings import Region, Fish
-from LS_Pycro_App.acquisition.views.py import BrowseDialog
-from LS_Pycro_App.htls_acquisition.sequences.main import Acquisition
-from LS_Pycro_App.htls_acquisition.models.htls_settings import HTLSSettings
-from LS_Pycro_App.htls_acquisition.views.py import (
-    HTLSAcqRegionsDialog, HTLSAcqSettingsDialog, HTLSAdvSettingsDialog)
+from LS_Pycro_App.controllers.select_controller import microscope, MicroscopeConfig
+from LS_Pycro_App.models.acq_settings import Region
+from LS_Pycro_App.views import BrowseDialog, HTLSAcqRegionsDialog, HTLSAcqSettingsDialog, HTLSAdvSettingsDialog
+from LS_Pycro_App.acquisition.main import HTLSAcquisition
+from LS_Pycro_App.models.acq_settings import HTLSSettings
 from LS_Pycro_App.hardware import Stage, Camera
-from LS_Pycro_App.utils import constants, exceptions
+from LS_Pycro_App.utils import exceptions
 
 
 class AcqController(object):
@@ -54,16 +53,14 @@ class AcqController(object):
         self.regions_dialog = HTLSAcqRegionsDialog()
         self._acq_settings_dialog = HTLSAcqSettingsDialog()
         self._adv_settings_dialog = HTLSAdvSettingsDialog()
-        self._acq_settings = HTLSSettings()
+        self._htls_settings = HTLSSettings()
+        self._acq_settings = self._htls_settings.acq_settings
         self._adv_settings = self._acq_settings.adv_settings
-        self._acquisition = Acquisition(self._acq_settings)
+        self._acquisition = HTLSAcquisition(self._acq_settings)
 
-        self._fish_num = 0
+        self._fish = self._htls_settings.fish_settings
         self._region_num = 0
-        self._fish = Fish()
-        self._region = Region()
-        self._fish_copy = deepcopy(self._fish)
-        self._region_copy0 = deepcopy(self._region)
+        self._region = self._htls_settings.fish_settings.region_list[self._region_num]
 
         self._set_widget_models()
         self._set_validators()
@@ -92,8 +89,6 @@ class AcqController(object):
         self.regions_dialog.video_available_list_view.setModel(self._video_available_model)
         self.regions_dialog.video_used_list_view.setModel(self._video_used_model)
         self._acq_settings_dialog.channel_order_list_view.setModel(self._channel_order_model)
-        self._adv_settings_dialog.stage_speed_combo_box.setModel(self._speed_list_model)
-        self._adv_settings_dialog.acq_order_combo_box.setModel(self._acq_order_model)
 
 
         # uses core channel list to initialize list model values
@@ -105,31 +100,22 @@ class AcqController(object):
         for speed in self._adv_settings.speed_list:
             item = QtGui.QStandardItem(str(speed))
             self._speed_list_model.appendRow(item)
-        self._adv_settings_dialog.stage_speed_combo_box.setCurrentText(str(self._adv_settings.z_stack_stage_speed))
 
-        for order in AcqOrder:
-            item = QtGui.QStandardItem(order.name)
-            self._acq_order_model.appendRow(item)
 
     def _set_validators(self):
         # Validators and extra properties
         validator = QtGui.QIntValidator()
-        self.regions_dialog.x_line_edit.setValidator(validator)
-        self.regions_dialog.y_line_edit.setValidator(validator)
-        self.regions_dialog.z_line_edit.setValidator(validator)
+        self.regions_dialog.start_x_line_edit.setValidator(validator)
+        self.regions_dialog.start_y_line_edit.setValidator(validator)
         self.regions_dialog.start_z_line_edit.setValidator(validator)
+        self.regions_dialog.end_x_line_edit.setValidator(validator)
+        self.regions_dialog.end_y_line_edit.setValidator(validator)
         self.regions_dialog.end_z_line_edit.setValidator(validator)
-
-        validator = QtGui.QIntValidator()
-        validator.setBottom(0)
-        self._acq_settings_dialog.time_points_interval_line_edit.setValidator(validator)
 
         validator = QtGui.QIntValidator()
         validator.setBottom(1)
         self.regions_dialog.step_size_line_edit.setValidator(validator)
         self.regions_dialog.video_num_frames_line_edit.setValidator(validator)
-        self._acq_settings_dialog.num_time_points_line_edit.setValidator(validator)
-        self._adv_settings_dialog.end_videos_num_frames_line_edit.setValidator(validator)
 
         validator = QtGui.QDoubleValidator()
         validator.setDecimals(AcqController.NUM_DECIMAL_PLACES)
@@ -137,36 +123,34 @@ class AcqController(object):
         validator.setTop(Camera.MAX_EXPOSURE)
         self.regions_dialog.snap_exposure_line_edit.setValidator(validator)
         self.regions_dialog.video_exposure_line_edit.setValidator(validator)
-        self._adv_settings_dialog.z_stack_exposure_line_edit.setValidator(validator)
-        self._adv_settings_dialog.end_videos_exposure_line_edit.setValidator(validator)
     
     def _connect_signals(self):
         # Initialize AcquisitionRegionsDialog event handlers. Organized by where they show up in the GUI.
         # TODO find a less ugly/more automated way of doing this. Yikes.
-        self.regions_dialog.go_to_button.clicked.connect(self._go_to_button_clicked)
-        self.regions_dialog.set_region_button.clicked.connect(self._set_region_button_clicked)
-        self.regions_dialog.x_line_edit.textEdited.connect(self._x_line_edit_event)
-        self.regions_dialog.y_line_edit.textEdited.connect(self._y_line_edit_event)
-        self.regions_dialog.z_line_edit.textEdited.connect(self._z_line_edit_event)
+        self.regions_dialog.start_go_to_button.clicked.connect(self.start_go_to_button_clicked)
+        self.regions_dialog.start_set_position_button.clicked.connect(self._start_set_position_button_clicked)
+        self.regions_dialog.start_x_line_edit.textEdited.connect(self._start_x_line_edit_event)
+        self.regions_dialog.start_y_line_edit.textEdited.connect(self._start_y_line_edit_event)
+        self.regions_dialog.start_z_line_edit.textEdited.connect(self._start_z_line_edit_event)
 
+        self.regions_dialog.end_go_to_button.clicked.connect(self.end_go_to_button_clicked)
+        self.regions_dialog.end_set_position_button.clicked.connect(self._end_set_position_button_clicked)
+        self.regions_dialog.end_x_line_edit.textEdited.connect(self._end_x_line_edit_event)
+        self.regions_dialog.end_y_line_edit.textEdited.connect(self._end_y_line_edit_event)
+        self.regions_dialog.end_z_line_edit.textEdited.connect(self._end_z_line_edit_event)
+
+        self.regions_dialog.num_fish_line_edit.textEdited.connect(self.num_fish_line_edit_event)
         self.regions_dialog.fish_type_line_edit.textEdited.connect(self._fish_type_line_edit_event)
         self.regions_dialog.age_line_edit.textEdited.connect(self._age_line_edit_event)
         self.regions_dialog.treatment_line_edit.textEdited.connect(self._treatment_line_edit_event)
         self.regions_dialog.add_notes_text_edit.textChanged.connect(self._add_notes_text_edit_event)
 
-        self.regions_dialog.copy_region_button.clicked.connect(self._copy_button_clicked)
-        self.regions_dialog.paste_region_button.clicked.connect(self._paste_button_clicked)
-        self.regions_dialog.prev_fish_button.clicked.connect(self._prev_fish_button_clicked)
         self.regions_dialog.prev_region_button.clicked.connect(self._prev_region_button_clicked)
         self.regions_dialog.remove_region_button.clicked.connect(self._remove_region_button_clicked)
+        self.regions_dialog.add_region_button.clicked.connect(self._add_region_button_clicked)
         self.regions_dialog.next_region_button.clicked.connect(self._next_region_button_clicked)
-        self.regions_dialog.next_fish_button.clicked.connect(self._next_fish_button_clicked)
 
         self.regions_dialog.z_stack_check_box.clicked.connect(self._z_stack_check_clicked)
-        self.regions_dialog.set_z_start_button.clicked.connect(self._set_z_start_button_clicked)
-        self.regions_dialog.start_z_line_edit.textEdited.connect(self._start_z_line_edit_event)
-        self.regions_dialog.set_z_end_button.clicked.connect(self._set_z_end_button_clicked)
-        self.regions_dialog.end_z_line_edit.textEdited.connect(self._end_z_line_edit_event)
         self.regions_dialog.step_size_line_edit.textEdited.connect(self._step_size_line_edit_event)
         self.regions_dialog.z_stack_available_list_view.doubleClicked.connect(self._z_stack_available_list_move)
         self.regions_dialog.z_stack_used_list_view.doubleClicked.connect(self._z_stack_used_list_move)
@@ -186,11 +170,6 @@ class AcqController(object):
         self.regions_dialog.reset_joystick_button.clicked.connect(self._reset_joystick_button_clicked)
 
         # Initialize AcqSettingsDialog event handlers
-        self._acq_settings_dialog.time_points_check_box.clicked.connect(self._time_points_check_clicked)
-        self._acq_settings_dialog.num_time_points_line_edit.textEdited.connect(self._num_time_points_line_edit_event)
-        self._acq_settings_dialog.time_points_interval_line_edit.textEdited.connect(
-            self._time_points_interval_line_edit_event)
-
         self._acq_settings_dialog.channel_order_move_up_button.clicked.connect(self._channel_move_up_button_clicked)
         self._acq_settings_dialog.channel_order_move_down_button.clicked.connect(self._channel_move_down_button_clicked)
 
@@ -208,10 +187,6 @@ class AcqController(object):
         self._adv_settings_dialog.custom_exposure_check_box.clicked.connect(self._custom_exposure_check_box_clicked)
         self._adv_settings_dialog.z_stack_exposure_line_edit.textEdited.connect(self._z_stack_exposure_line_edit_event)
 
-        self._adv_settings_dialog.acq_order_combo_box.activated.connect(self._acq_order_combo_box_clicked)
-        self._acq_order_dialog.yes_button.clicked.connect(self._acq_order_yes_button_clicked)
-        self._acq_order_dialog.cancel_button.clicked.connect(self._acquisition_order_cancel_button_clicked)
-
         self._adv_settings_dialog.lsrm_check_box.clicked.connect(self._lsrm_check_box_clicked)
 
         self._adv_settings_dialog.video_spectral_check_box.clicked.connect(self._video_spectral_check_clicked)
@@ -220,18 +195,9 @@ class AcqController(object):
         self._adv_settings_dialog.backup_directory_browse_button.clicked.connect(self._second_browse_button_clicked)
         self._adv_settings_dialog.backup_directory_line_edit.textEdited.connect(self._backup_directory_line_edit_event)
 
-        self._adv_settings_dialog.end_videos_check_box.clicked.connect(self._end_videos_check_box_clicked)
-        self._adv_settings_dialog.end_videos_num_frames_line_edit.textEdited.connect(self._end_videos_num_frames_line_edit_event)
-        self._adv_settings_dialog.end_videos_exposure_line_edit.textEdited.connect(self._end_videos_exposure_line_edit)
-
     def _set_additional_widget_settings(self):
         self._acq_settings_dialog.channel_order_list_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.regions_dialog.region_table_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
-
-        # Want these to be uneditable since they're set by the application
-        self._acq_settings_dialog.num_images_per_line_edit.setEnabled(False)
-        self._acq_settings_dialog.total_images_line_edit.setEnabled(False)
-        self._acq_settings_dialog.memory_line_edit.setEnabled(False)
 
         #custom exposure should always be allowed on WIL and lsrm isn't supported.
         is_wil = microscope == MicroscopeConfig.WILLAMETTE
@@ -261,20 +227,10 @@ class AcqController(object):
         Updates all GUI elements (in PyQt5, widgets) of acq_settings_dialog to reflect the 
         current values in acq_settings
         """
-        self._update_timepoints_widgets()
         self._update_channel_order_model()
         self._update_save_path_widgets()
-        self._update_memory_widgets()
 
     # _update_acq_settings_dialog helpers
-    def _update_timepoints_widgets(self):
-        self._acq_settings_dialog.time_points_check_box.setChecked(self._acq_settings.time_points_enabled)
-        self._acq_settings_dialog.num_time_points_line_edit.setEnabled(self._acq_settings.time_points_enabled)
-        self._acq_settings_dialog.num_time_points_line_edit.setText(str(self._acq_settings.num_time_points))
-        self._acq_settings_dialog.time_points_interval_line_edit.setEnabled(self._acq_settings.time_points_enabled)
-        self._acq_settings_dialog.time_points_interval_line_edit.setText(
-            str(self._acq_settings.time_points_interval_sec))
-
     def _update_channel_order_model(self):
         self._channel_order_model.clear()
         for channel in self._acq_settings.channel_order_list:
@@ -284,26 +240,9 @@ class AcqController(object):
         self._acq_settings_dialog.save_path_line_edit.setText(self._acq_settings.directory)
         self._acq_settings_dialog.researcher_line_edit.setText(self._acq_settings.researcher)
 
-    def _update_memory_widgets(self):
-        if self._adv_settings.acq_order == AcqOrder.TIME_SAMP:
-            self._acq_settings_dialog.num_images_per_line_edit.setText(str(self._acq_settings.images_per_time_point))
-            self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
-        elif self._adv_settings.acq_order == AcqOrder.SAMP_TIME:
-            # NA because different fish have different number of images
-            self._acq_settings_dialog.num_images_per_line_edit.setText("N/A")
-            self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
-        elif self._adv_settings.acq_order == AcqOrder.POS_TIME:
-            # NA because different regions have different numbers of images
-            self._acq_settings_dialog.num_images_per_line_edit.setText("N/A")
-            self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
-
-        memory_gb = self._acq_settings.size_mb*constants.MB_TO_GB
-        self._acq_settings_dialog.memory_line_edit.setText(str(round(memory_gb, AcqController.NUM_DECIMAL_PLACES)))
-
     def _update_adv_settings_dialog(self):
         self._update_adv_z_stack_widgets()
         self._update_adv_video_widgets()
-        self._update_acq_order_widgets()
         self._update_adv_backup_directory_widgets()
         self._update_end_videos_widgets()
 
@@ -316,9 +255,6 @@ class AcqController(object):
 
     def _update_adv_video_widgets(self):
         self._adv_settings_dialog.video_spectral_check_box.setChecked(self._adv_settings.spectral_video_enabled)
-
-    def _update_acq_order_widgets(self):
-        self._adv_settings_dialog.acq_order_combo_box.setCurrentText(self._adv_settings.acq_order.name)
 
     def _update_adv_backup_directory_widgets(self):
         self._adv_settings_dialog.backup_directory_check_box.setChecked(self._adv_settings.backup_directory_enabled)
@@ -341,12 +277,10 @@ class AcqController(object):
         First, self._fish and self._region pointers to elements specified by self._fish_num and self._region_num. 
         Then, updates all button states and line edits to match current intanes of fish and region.
         """
-        fish_bool = self._update_fish()
         region_bool = self._update_region()
         self._region_widgets_update(region_bool)
-        self._fish_widgets_state_update(fish_bool)
         self._fish_notes_update()
-        self._position_labels_update()
+        self._position_widgets_update()
 
         self._region_z_stack_widgets_update()
         self._region_snap_widgets_update()
@@ -370,15 +304,6 @@ class AcqController(object):
             self._region = Region()
         return region_found
 
-    def _update_fish(self):
-        fish_found = False
-        try:
-            self._fish = self._acq_settings.fish_list[self._fish_num]
-            fish_found = True
-        except IndexError:
-            self._fish = Fish()
-        return fish_found
-
     def _region_widgets_update(self, region_bool):
         """
         Updates region buttons 
@@ -387,35 +312,24 @@ class AcqController(object):
 
         If self._region_num > 0, previous region button is enabled. Else, disabled.
         """
-        self.regions_dialog.fish_label.setText(f"Fish {self._fish_num + 1}")
+        self.regions_dialog.region_label.setText(f"Region {self._region_num + 1}")
         self.regions_dialog.next_region_button.setEnabled(region_bool)
         self.regions_dialog.remove_region_button.setEnabled(region_bool)
-        self.regions_dialog.go_to_button.setEnabled(region_bool)
         self.regions_dialog.prev_region_button.setEnabled(self._region_num > 0)
 
-    def _fish_widgets_state_update(self, fish_bool):
-        """
-        Sets next fish button and previous fish button.
-
-        If fish_bool == True, next fish button enabled. Else, disabled.
-
-        If self._fish_num > 0, previous fish button is enabled. Else, disabled.
-        """
-        self.regions_dialog.region_label.setText(f"Region {self._region_num + 1}")
-        self.regions_dialog.next_fish_button.setEnabled(fish_bool)
-        self.regions_dialog.prev_fish_button.setEnabled(self._fish_num > 0)
-
     def _fish_notes_update(self):
-        self.regions_dialog.fish_notes_label.setText(f"Fish {self._fish_num + 1} Notes")
         self.regions_dialog.fish_type_line_edit.setText(str(self._fish.fish_type))
         self.regions_dialog.age_line_edit.setText(str(self._fish.age))
         self.regions_dialog.treatment_line_edit.setText(str(self._fish.treatment))
         self.regions_dialog.add_notes_text_edit.setPlainText(str(self._fish.add_notes))
 
-    def _position_labels_update(self):
-        self.regions_dialog.x_line_edit.setText(str(self._region.x_pos))
-        self.regions_dialog.y_line_edit.setText(str(self._region.y_pos))
-        self.regions_dialog.z_line_edit.setText(str(self._region.z_pos))
+    def _position_widgets_update(self):
+        self.regions_dialog.start_x_line_edit.setText(str(self._htls_settings.capillary_start_pos[0]))
+        self.regions_dialog.start_y_line_edit.setText(str(self._htls_settings.capillary_start_pos[1]))
+        self.regions_dialog.start_z_line_edit.setText(str(self._htls_settings.capillary_start_pos[2]))
+        self.regions_dialog.end_x_line_edit.setText(str(self._htls_settings.capillary_end_pos[0]))
+        self.regions_dialog.end_y_line_edit.setText(str(self._htls_settings.capillary_end_pos[1]))
+        self.regions_dialog.end_z_line_edit.setText(str(self._htls_settings.capillary_end_pos[2]))
 
     def _region_z_stack_widgets_update(self):
         """
@@ -423,12 +337,6 @@ class AcqController(object):
         """
         z_stack_enabled = self._region.z_stack_enabled
         self.regions_dialog.z_stack_check_box.setChecked(z_stack_enabled)
-        self.regions_dialog.set_z_start_button.setEnabled(z_stack_enabled)
-        self.regions_dialog.start_z_line_edit.setEnabled(z_stack_enabled)
-        self.regions_dialog.start_z_line_edit.setText(str(self._region.z_stack_start_pos))
-        self.regions_dialog.set_z_end_button.setEnabled(z_stack_enabled)
-        self.regions_dialog.end_z_line_edit.setEnabled(z_stack_enabled)
-        self.regions_dialog.end_z_line_edit.setText(str(self._region.z_stack_end_pos))
         self.regions_dialog.step_size_line_edit.setEnabled(z_stack_enabled)
         self.regions_dialog.step_size_line_edit.setText(str(self._region.z_stack_step_size))
         self.regions_dialog.z_stack_available_list_view.setEnabled(z_stack_enabled)
@@ -477,14 +385,8 @@ class AcqController(object):
         small font? Wrapping headers? idk but this is awful.
         """
         self._region_table_model.clear()
-        headers = ["fish #", 
-                   "reg #", 
-                   "x", 
-                   "y", 
-                   "z", 
-                   "z stack", 
-                   "start",
-                   "end", 
+        headers = ["reg #", 
+                   "z stack",
                    "step", 
                    "chans", 
                    "snap", 
@@ -493,45 +395,47 @@ class AcqController(object):
                    "video",
                    "frames", 
                    "exp", 
-                   "chans", 
-                   "# images"]
+                   "chans"]
         self._region_table_model.setHorizontalHeaderLabels(headers)
-        for fish_num, fish in enumerate(self._acq_settings.fish_list):
-            for region_num, region in enumerate(fish.region_list):
-                row_list = [str(fish_num + 1), 
-                            str(region_num + 1),
-                            str(region.x_pos), 
-                            str(region.y_pos),
-                            str(region.z_pos), 
-                            str(region.z_stack_enabled),
-                            str(region.z_stack_start_pos), 
-                            str(region.z_stack_end_pos),
-                            str(region.z_stack_step_size), 
-                            ','.join(region.z_stack_channel_list),
-                            str(region.snap_enabled), 
-                            str(region.snap_exposure),
-                            ','.join(region.snap_channel_list), 
-                            str(region.video_enabled),
-                            str(region.video_num_frames), 
-                            str(region.video_exposure),
-                            ','.join(region.video_channel_list), 
-                            str(region.num_images)]
-                row_list = [QtGui.QStandardItem(element) for element in row_list]
-                self._region_table_model.appendRow(row_list)
+        for region_num, region in enumerate(self._fish):
+            row_list = [str(region_num + 1),
+                        str(region.z_stack_enabled),
+                        str(region.z_stack_step_size), 
+                        ','.join(region.z_stack_channel_list),
+                        str(region.snap_enabled), 
+                        str(region.snap_exposure),
+                        ','.join(region.snap_channel_list), 
+                        str(region.video_enabled),
+                        str(region.video_num_frames), 
+                        str(region.video_exposure),
+                        ','.join(region.video_channel_list)]
+            row_list = [QtGui.QStandardItem(element) for element in row_list]
+            self._region_table_model.appendRow(row_list)
         self.regions_dialog.region_table_view.resizeColumnsToContents()
 
-    def _go_to_button_clicked(self):
+    def start_go_to_button_clicked(self):
         # Goes to position set in current instance of Region
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        x_pos = self._region.x_pos
-        y_pos = self._region.y_pos
-        z_pos = self._region.z_pos
-        if x_pos and y_pos and z_pos:
+        x_pos = self._htls_settings.capillary_start_pos[0]
+        y_pos = self._htls_settings.capillary_start_pos[1]
+        z_pos = self._htls_settings.capillary_start_pos[2]
+        if None not in (x_pos, y_pos, z_pos):
             with contextlib.suppress(exceptions.HardwareException):
                 Stage.move_stage(x_pos, y_pos, z_pos)
         self._update_dialogs()
 
-    def _set_region_button_clicked(self):
+    def end_go_to_button_clicked(self):
+        # Goes to position set in current instance of Region
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        x_pos = self._htls_settings.capillary_end_pos[0]
+        y_pos = self._htls_settings.capillary_end_pos[1]
+        z_pos = self._htls_settings.capillary_end_pos[2]
+        if None not in (x_pos, y_pos, z_pos):
+            with contextlib.suppress(exceptions.HardwareException):
+                Stage.move_stage(x_pos, y_pos, z_pos)
+        self._update_dialogs()
+
+    def _start_set_position_button_clicked(self):
         # Gets current stage position and creates element of region_list
         # with current settings in GUI. Currently, this method and the paste_regionButton
         # are the only ways to initialize an element in the region_list.
@@ -542,20 +446,29 @@ class AcqController(object):
             y_pos = Stage.get_y_position()
             z_pos = Stage.get_z_position()
         if None not in (x_pos, y_pos, z_pos):
-            self._region.x_pos = x_pos
-            self._region.y_pos = y_pos
-            self._region.z_pos = z_pos
-            self._acq_settings.update_fish_list(self._fish_num, self._fish)
-            self._fish.update_region_list(self._region_num, self._region)
+            self._htls_settings.capillary_start_pos = [x_pos, y_pos, z_pos]
         else:
             message = "Region cannot be set. Stage failed to return position."
             self._logger.info(message)
             print(message)
         self._update_dialogs()
 
-    def _next_region_button_clicked(self):
+    def _end_set_position_button_clicked(self):
+        # Gets current stage position and creates element of region_list
+        # with current settings in GUI. Currently, this method and the paste_regionButton
+        # are the only ways to initialize an element in the region_list.
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._region_num += 1
+        x_pos, y_pos, z_pos = None, None, None
+        with contextlib.suppress(exceptions.HardwareException):
+            x_pos = Stage.get_x_position()
+            y_pos = Stage.get_y_position()
+            z_pos = Stage.get_z_position()
+        if None not in (x_pos, y_pos, z_pos):
+            self._htls_settings.capillary_end_pos = [x_pos, y_pos, z_pos]
+        else:
+            message = "Region cannot be set. Stage failed to return position."
+            self._logger.info(message)
+            print(message)
         self._update_dialogs()
 
     def _prev_region_button_clicked(self):
@@ -563,30 +476,21 @@ class AcqController(object):
         self._region_num -= 1
         self._update_dialogs()
 
-    def _next_fish_button_clicked(self):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._fish_num += 1
-        self._region_num = 0
-        self._update_dialogs()
-
-    def _prev_fish_button_clicked(self):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._fish_num -= 1
-        self._region_num = 0
-        self._update_dialogs()
-
     def _remove_region_button_clicked(self):
         # Removes current region from region_list.
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._fish.remove_region(self._region_num)
-        if len(self._fish.region_list) == 0:
-            self._acq_settings.remove_fish(self._fish_num)
         self._update_dialogs()
 
-    def _copy_button_clicked(self):
-        # Creates new object with fields of the same value as current region
+    def _add_region_button_clicked(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._region_copy = deepcopy(self._region)
+        self._fish.append_blank_region()
+        self._update_dialogs()
+
+    def _next_region_button_clicked(self):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        self._region_num += 1
+        self._update_dialogs()
 
     def _paste_button_clicked(self):
         # Initializes new region at current index with values from region_copy.
@@ -594,21 +498,7 @@ class AcqController(object):
         # initialize region in region_list.
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._region = deepcopy(self._region_copy)
-        self._acq_settings.update_fish_list(self._fish_num, self._fish)
         self._fish.update_region_list(self._region_num, self._region)
-        self._update_dialogs()
-
-    def _set_z_start_button_clicked(self):
-        # Gets current z stage position and sets it as z_start_position
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        z_pos = Stage.get_z_position()
-        self._region.z_stack_start_pos = z_pos
-        self._update_dialogs()
-
-    def _set_z_end_button_clicked(self):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        z_pos = Stage.get_z_position()
-        self._region.z_stack_end_pos = z_pos
         self._update_dialogs()
 
     def _acq_setup_button_clicked(self):
@@ -708,23 +598,48 @@ class AcqController(object):
         self._region.video_channel_list = self._get_list_from_model(self._video_used_model)
         self._update_dialogs()
 
-    def _x_line_edit_event(self, text):
+    def _start_x_line_edit_event(self, text):
         # Sets x_pos in region
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            self._region.x_pos = int(text)
+            self._htls_settings.capillary_start_pos[0] = int(text)
             self._update_dialogs()
 
-    def _y_line_edit_event(self, text):
+    def _start_y_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            self._region.y_pos = int(text)
+            self._htls_settings.capillary_start_pos[1] = int(text)
             self._update_dialogs()
 
-    def _z_line_edit_event(self, text):
+    def _start_z_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            self._region.z_pos = int(text)
+            self._htls_settings.capillary_start_pos[2] = int(text)
+            self._update_dialogs()
+    
+    def _end_x_line_edit_event(self, text):
+        # Sets x_pos in region
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        with contextlib.suppress(ValueError):
+            self._htls_settings.capillary_end_pos[0] = int(text)
+            self._update_dialogs()
+
+    def _end_y_line_edit_event(self, text):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        with contextlib.suppress(ValueError):
+            self._htls_settings.capillary_end_pos[1] = int(text)
+            self._update_dialogs()
+
+    def _end_z_line_edit_event(self, text):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        with contextlib.suppress(ValueError):
+            self._htls_settings.capillary_end_pos[2] = int(text)
+            self._update_dialogs()
+
+    def num_fish_line_edit_event(self, text):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        with contextlib.suppress(ValueError):
+            self._htls_settings.num_fish = int(text)
             self._update_dialogs()
 
     def _fish_type_line_edit_event(self, text):
@@ -752,18 +667,6 @@ class AcqController(object):
         text = self.regions_dialog.add_notes_text_edit.toPlainText()
         self._fish.add_notes = text
         self._acq_settings.write_to_config()
-
-    def _start_z_line_edit_event(self, text):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        with contextlib.suppress(ValueError):
-            self._region.z_stack_start_pos = int(text)
-            self._update_dialogs()
-
-    def _end_z_line_edit_event(self, text):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        with contextlib.suppress(ValueError):
-            self._region.z_stack_end_pos = int(text)
-            self._update_dialogs()
 
     def _step_size_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
@@ -798,25 +701,6 @@ class AcqController(object):
                 self._update_region_table()
             else:
                 self._update_dialogs()
-
-    def _time_points_check_clicked(self, checked):
-        # Sets time_points_enabled to current state of checkbox
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._acq_settings.time_points_enabled = checked
-        self._update_dialogs()
-
-    def _num_time_points_line_edit_event(self, text):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        with contextlib.suppress(ValueError):
-            if self._acq_settings_dialog.num_time_points_line_edit.hasAcceptableInput():
-                self._acq_settings.num_time_points = int(text)
-            self._update_dialogs()
-
-    def _time_points_interval_line_edit_event(self, text):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        with contextlib.suppress(ValueError):
-            if self._acq_settings_dialog.num_time_points_line_edit.hasAcceptableInput():
-                self._acq_settings.time_points_interval_sec = int(text)
 
     def _channel_move_up_button_clicked(self):
         # Moves channel one index lower in channel_order_list.
@@ -853,7 +737,6 @@ class AcqController(object):
             self._update_regions_dialog()
             self._acq_settings.write_to_config()
 
-
     def _adv_settings_button_clicked(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings_dialog.show()
@@ -885,7 +768,7 @@ class AcqController(object):
         # Update before starting acquisition to update all values beforehand.
         self._update_dialogs()
         if not self._acquisition.is_alive():
-            self._acquisition = Acquisition(self._acq_settings)
+            self._acquisition = HTLSAcquisition(self._acq_settings)
         self._acquisition._acq_dialog.show()
         self._acquisition._acq_dialog.activateWindow()
         self._acquisition.start()
@@ -925,26 +808,6 @@ class AcqController(object):
                     self._update_dialogs()
             else:
                 self._update_dialogs()
-
-    def _acq_order_combo_box_clicked(self):
-        # Changes acquisition order. If SAMP_TIME is selected, prompts user to make sure
-        # they want to change this setting.
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._acq_order_dialog.show()
-        self._acq_order_dialog.activateWindow()
-
-    def _acq_order_yes_button_clicked(self):
-        # If confirmed, acquisition order is changed to SAMP_TIME
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._adv_settings.acq_order = AcqOrder[self._adv_settings_dialog.acq_order_combo_box.currentText()]
-        self._acq_order_dialog.close()
-        self._update_dialogs()
-
-    def _acquisition_order_cancel_button_clicked(self):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._adv_settings_dialog.acq_order_combo_box.setCurrentText(self._adv_settings.acq_order.name)
-        self._acq_order_dialog.close()
-        self._update_dialogs()
 
     def _lsrm_check_box_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))

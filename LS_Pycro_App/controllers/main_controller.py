@@ -30,19 +30,28 @@ API is. Will thing more about this.
 
 from PyQt5 import QtCore
 
-from LS_Pycro_App.acquisition.acq_controller import AcqController
-from LS_Pycro_App.hardware.galvo.galvo_controller import GalvoController
-from LS_Pycro_App.main.views.py import MainWindow
-from LS_Pycro_App.microscope_select.microscope_select import microscope, MicroscopeConfig
+from LS_Pycro_App.controllers.cls_controller import AcqController
+from LS_Pycro_App.controllers.galvo_controller import GalvoController
+from LS_Pycro_App.controllers.rotation_and_pump_controller import RotationAndPumpController
+from LS_Pycro_App.controllers.select_controller import microscope, MicroscopeConfig
+from LS_Pycro_App.views import HTLSMainWindow, KlaMainWindow, WilMainWindow
 
 class MainController(object):
     def __init__(self):
         #Same instances of studio, core, mm_hardware_commands, and spim_commands used throughout
-        self._main_window = MainWindow()
         self._acquisition_controller = AcqController()
         if microscope == MicroscopeConfig.KLAMATH:
+            self._main_window = KlaMainWindow()
             self._galvo_controller = GalvoController()
             self._main_window.galvo_button.clicked.connect(self._galvo_button_clicked)
+        elif microscope == MicroscopeConfig.WILLAMETTE:
+            self._main_window = WilMainWindow()
+        elif microscope == MicroscopeConfig.HTLS:
+            self._main_window = HTLSMainWindow()
+            self._galvo_controller = GalvoController()
+            self._rotation_and_pump_controller = RotationAndPumpController()
+            self._main_window.galvo_button.clicked.connect(self._galvo_button_clicked)
+            self._main_window.rotation_and_pump_button.clicked.connect(self._rotation_and_pump_button_clicked)
         
         #initialize main window and event handlers.
         self._main_window.regions_button.clicked.connect(self._regions_button_clicked)
@@ -56,6 +65,10 @@ class MainController(object):
     def _galvo_button_clicked(self):
         self._galvo_controller.galvo_dialog.show()
         self._galvo_controller.galvo_dialog.activateWindow()
+
+    def _rotation_and_pump_button_clicked(self):
+        self._rotation_and_pump_controller.dialog.show()
+        self._rotation_and_pump_controller.dialog.activateWindow()
 
     def _regions_button_clicked(self):
         self._acquisition_controller.regions_dialog.show()

@@ -1,31 +1,36 @@
+import configparser
+import os
 import sys
 from enum import Enum
 
 from PyQt5 import QtGui
 from PyQt5.QtWidgets import QApplication
 
-from LS_Pycro_App.utils import user_config
-from LS_Pycro_App.microscope_select.views.py import MicroscopeSelectDialog
+from LS_Pycro_App.views import MicroscopeSelectDialog
 
 
-CONFIG_SECTION = "Microscope Config"
-CONFIG_OPTION = "microscope config"
+MICROSCOPE_CONFIG_FILE_NAME = "microscope.cfg"
+MICROSCOPE_CONFIG_SECTION = "Microscope Config"
+MICROSCOPE_CONFIG_OPTION = "microscope config"
 
 class MicroscopeConfig(Enum):
     KLAMATH = 1
     WILLAMETTE = 2
     HTLS = 3
 
+microscope_config = configparser.ConfigParser()
+microscope_config.read(MICROSCOPE_CONFIG_FILE_NAME)
+
 def get_microscope_from_config():
-    if user_config.has_section(CONFIG_SECTION):
-        return MicroscopeConfig[user_config.get(CONFIG_SECTION, CONFIG_OPTION)]
+    if configparser.ConfigParser().has_section(MICROSCOPE_CONFIG_SECTION):
+        return MicroscopeConfig[microscope_config.get(MICROSCOPE_CONFIG_SECTION, MICROSCOPE_CONFIG_OPTION)]
     else:
         return MicroscopeConfig.WILLAMETTE
 
 def write_microscope_to_config():
-    if not user_config.has_section(CONFIG_SECTION):
-        user_config.add_section(CONFIG_SECTION)
-    user_config.set(CONFIG_SECTION, CONFIG_OPTION, microscope.name)
+    if not microscope_config.has_section(MICROSCOPE_CONFIG_SECTION):
+        microscope_config.add_section(MICROSCOPE_CONFIG_SECTION)
+    microscope_config.set(MICROSCOPE_CONFIG_SECTION, MICROSCOPE_CONFIG_OPTION, microscope.name)
 
 selected = False
 microscope = get_microscope_from_config()
@@ -52,4 +57,6 @@ def select_microscope():
     microscope_dialog.confirm_button.clicked.connect(confirm_button_clicked)
     microscope_dialog.show()
     app.exec_()
+    with open(MICROSCOPE_CONFIG_FILE_NAME, "w") as configfile:
+        microscope_config.write(configfile)
     return selected
