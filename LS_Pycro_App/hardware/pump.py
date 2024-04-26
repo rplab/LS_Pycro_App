@@ -44,24 +44,15 @@ def is_full():
     return get_position == MAX_POSITION
 
 
-def fill_check():
-    prev_port = port
-    prev_velocity = velocity
-    prev_speed = speed
-    if is_empty:
-        terminate()
-        fill()
-    set_port(prev_port)
-    set_velocity(prev_velocity)
-    set_speed(prev_speed)
-
-
 def get_position():
     com.reset_output_buffer()
     _write_command("?")
     try:
+        #? command returns a bunch of characters in addition to the position.
+        #This grabs the position from the string of characters.
         position = int((str(com.read(30)).split("`")[1].split("\\")[0]))
-    except:
+    except ValueError:
+        #If int() fails (ie if no position is returned), reattempt until it does.
         get_position()
     return position
 

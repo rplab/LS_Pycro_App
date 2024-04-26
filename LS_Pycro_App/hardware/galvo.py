@@ -49,7 +49,7 @@ import nidaqmx
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
 
 from LS_Pycro_App.hardware.exceptions_handle import handle_exception
-from LS_Pycro_App.hardware.galvo.galvo_settings import GalvoSettings
+from LS_Pycro_App.models.galvo_settings import GalvoSettings
 from LS_Pycro_App.utils import constants
 
 
@@ -153,7 +153,7 @@ def set_lsrm_mode():
     _reset_tasks()
     # Configures clock timing. Note that the AcquisitionType here is FINITE instead of CONTINUOUS in DSLM.
     sample_mode = nidaqmx.constants.AcquisitionType.FINITE
-    _scan_output.timing.cfg_samp_clk_timing(settings.get_lsrm_sample_rate(), 
+    _scan_output.timing.cfg_samp_clk_timing(settings.lsrm_sample_rate, 
                                             sample_mode=sample_mode,
                                             samps_per_chan=settings.LSRM_NUM_SAMPLES)
     # Creates start trigger and makes task retriggerable so that PLC pulses retrigger it. Also adds delay which acts
