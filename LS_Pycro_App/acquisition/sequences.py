@@ -4,15 +4,15 @@ import logging
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
-from LS_Pycro_App.acquisition.views.py import AcqDialog
-from LS_Pycro_App.acquisition.models.acq_settings import AcqSettings, Fish, Region
-from LS_Pycro_App.acquisition.models.acq_directory import AcqDirectory
-from LS_Pycro_App.acquisition.sequences.imaging import ImagingSequence, Snap, Video, SpectralVideo, ZStack, SpectralZStack
+from LS_Pycro_App.views import AcqDialog
+from LS_Pycro_App.models.acq_settings import AcqSettings, HTLSSettings, Fish, Region
+from LS_Pycro_App.models.acq_directory import AcqDirectory
+from LS_Pycro_App.acquisition.imaging import ImagingSequence, Snap, Video, SpectralVideo, ZStack, SpectralZStack
 from LS_Pycro_App.hardware import Stage
 from LS_Pycro_App.utils import constants, dir_functions, exceptions
 from LS_Pycro_App.utils.pycro import BF_CHANNEL
 
-class AcquisitionOrder(ABC):
+class AcquisitionSequence(ABC):
     """
     Abstract class that controls the order of region, fish, and time points during image acquisition.
     Moves stage to region for imaging and then calls run() in imaging sequences to acquire images.
@@ -65,7 +65,7 @@ class AcquisitionOrder(ABC):
         """
         pass
 
-    def __init__(self, acq_settings: AcqSettings, acq_dialog: AcqDialog,
+    def __init__(self, acq_settings: AcqSettings | HTLSSettings, acq_dialog: AcqDialog,
                  abort_flag: exceptions.AbortFlag, acq_directory: AcqDirectory):
         self._logger = logging.getLogger(self._get_name())
         #deepcopy so that if GUI is changed during acquisition is in progress, won't change running acquisition
@@ -238,7 +238,7 @@ class AcquisitionOrder(ABC):
         self._update_acq_status(f"Acquiring timepoint {time_point_num + 1}")
 
 
-class TimeSampAcquisition(AcquisitionOrder):
+class TimeSampAcquisition(AcquisitionSequence):
     """
     TimeSampAcquisition is the default acquisition order. It takes does a full acquisition of all fish
     for each time point.
@@ -277,7 +277,7 @@ class TimeSampAcquisition(AcquisitionOrder):
                 self._acquire_regions(fish)
 
 
-class SampTimeAcquisition(AcquisitionOrder):
+class SampTimeAcquisition(AcquisitionSequence):
     """
     SampTimeAcquisition performs a full time series for each fish. Ie, if there are two fish in
     AcqSettings.fish_list and timepoints are enabled, a full time series will be performed for the
@@ -320,7 +320,7 @@ class SampTimeAcquisition(AcquisitionOrder):
                 break
 
 
-class PosTimeAcquisition(AcquisitionOrder):
+class PosTimeAcquisition(AcquisitionSequence):
     """
     PosTimeAcquisition performs a full time series for each region. Ie, if there is one fish with two 
     regions AcqSettings.fish_list and timepoints are enabled, a full time series will be performed for 
@@ -361,3 +361,125 @@ class PosTimeAcquisition(AcquisitionOrder):
                 self._wait_for_next_time_point(start_time)
             else:
                 break
+
+
+class HTLSSequence(AcquisitionSequence):
+    def run(self):
+        self._acquire_fish()
+
+    def _acquire_fish(self):
+        Camera.set_binning(Camera.DETECTION_BINNING)
+        Camera.set_exposure(Camera.DETECTION_EXPOSURE)
+        pycro.set_channel(pycro.BF_CHANNEL)
+        bf_image = self._get_snap_array()
+        bf_max = np.mean(bf_image)
+        bf_std = np.std(bf_image)
+        x_step_size = (1 - HTLSSequence._REGION_OVERLAP)*core.get_image_width()*core.get_pixel_size_um()
+        fish_num = 0
+        time_no_fish_s = 0
+        while fish_num < self._acq_settings.num_fish:
+            self._acq_directory.set_fish_num(fish_num + 1)
+            self._update_acq_status("Initializing camera")
+            Camera.set_binning(Camera.DETECTION_BINNING)
+            Camera.set_exposure(Camera.DETECTION_EXPOSURE)
+            pycro.set_channel(pycro.BF_CHANNEL)
+            self._update_acq_status("Starting pump")
+            #fill pump before so we don't have to query the pump while detecting
+            #the fish
+            Pump.fill()
+            Pump.set_port("O")
+            Pump.set_speed(Pump.DEFAULT_SPEED)
+            Pump.set_velocity(Pump.DETECTION_VELOCITY)
+            Pump.set_zero()
+            self._update_acq_status("Waiting for fish")
+            while True:
+                self._abort_check()
+                image = self._get_snap_array()
+                if fish_detection.fish_detected(image, bf_std, bf_max):
+                    self._update_acq_status("Fish found")
+                    break
+                else:
+                    time.sleep(Camera.DETECTION_EXPOSURE)
+                    time_no_fish_s += Camera.DETECTION_EXPOSURE*constants.MS_TO_S
+                    if time_no_fish_s > HTLSSequence._DETECT_TIMEOUT_S:
+                        raise exceptions.DetectionTimeoutException
+            try:
+                self._update_acq_status("Finding fish position")
+                x_offset = fish_detection.get_region_1_x_offset(start_pos, end_pos, x_step_size)
+            except (exceptions.BubbleException, exceptions.WeirdFishException):
+                continue
+            Camera.set_binning(Camera.DEFAULT_BINNING)
+            dx = end_pos[0] - start_pos[0]
+            dy = end_pos[1] - start_pos[1]
+            dz = end_pos[2] - start_pos[2]
+            x_stage_dir = 1 if start_pos[1] <= end_pos[0] else -1
+            x_0 = start_pos[0] + x_stage_dir*abs(x_offset)
+            init_factor = (x_0 - np.mean((start_pos[0], end_pos[0])))/dx + 0.5
+            y_0 = init_factor*dy + start_pos[1]
+            z_0 = init_factor*dz + start_pos[2]
+            step_factor = x_step_size/abs(dx)
+            x_incr = x_step_size*x_stage_dir
+            y_incr = step_factor*dy
+            z_incr = step_factor*dz
+            self._acq_settings.fish_settings.region_list.clear()
+            for region_num in range(self._acq_settings.num_regions):
+                self._update_region_label(region_num)
+                region = copy.deepcopy(self._acq_settings.region)
+                region.x_pos = x_0 + region_num*x_incr
+                region.y_pos = y_0 + region_num*y_incr
+                region.z_pos = z_0 + region_num*z_incr
+                self._move_to_region(region)
+                if region.z_stack_enabled:
+                    self._update_acq_status("Determining z-stack positions")
+                    self._set_z_stack_pos(region)
+                self._acq_settings.fish_settings.region_list.append[region]
+                self._run_imaging_sequences(bf_max, region)
+            self._acq_settings.fish_settings.write_to_config(fish_num + 1)
+            fish_num += 1
+        user_config.write_config_file(f"{self._acq_directory.root}/notes.txt")
+
+    def _set_z_stack_pos(self, noise_max, noise_std, region: Region):
+        if region.z_stack_channel_list:
+            channel = self._get_max_channel(region)
+            pycro.set_channel(channel)
+            for direction in [-1, 1]:
+                Stage.set_z_position(region.z_pos + direction*1000)
+                while True:
+                    self._abort_check()
+                    image = self._get_snap_array()
+                    if np.max(image) <= noise_max + noise_std:
+                        self._update_acq_status("Fish found")
+                        break
+                    else:
+                        time.sleep(Camera.DETECTION_EXPOSURE)
+                        time_no_fish_s += Camera.DETECTION_EXPOSURE*constants.MS_TO_S
+                        if time_no_fish_s > HTLSSequence._DETECT_TIMEOUT_S:
+                            raise exceptions.DetectionTimeoutException
+    
+    def _get_max_channel(self, region: Region):
+        maxes = []
+        for channel in region.z_stack_channel_list:
+            pycro.set_channel(channel)
+            image = self._get_snap_array()
+            maxes.append(np.max(image))
+        return region.z_stack_channel_list[np.argmax(maxes)]
+
+    
+    def _get_bf_stats(self):
+        pycro.set_channel(pycro.BF_CHANNEL)
+        image = self._get_snap_array()
+        return np.mean(image), np.std(image)
+
+    
+    def _get_noise_stats(self):
+        autoshutter_state = core.get_auto_shutter()
+        core.set_auto_shutter(False)
+        core.set_shutter_open(False)
+        image = self._get_snap_array()
+        core.set_auto_shutter(autoshutter_state)
+        return np.mean(image), np.std(image)
+
+
+    def _get_snap_array(self) -> np.ndarray:
+        Camera.snap_image()
+        return pycro.pop_next_image().get_raw_pixels()
