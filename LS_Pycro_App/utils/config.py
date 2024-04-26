@@ -3,6 +3,7 @@ import configparser
 import logging
 import os
 
+from LS_Pycro_App.controllers.select_controller import microscope, MICROSCOPE_CONFIG_SECTION, MICROSCOPE_CONFIG_OPTION
 
 class Config(configparser.ConfigParser):
     """
@@ -30,6 +31,7 @@ class Config(configparser.ConfigParser):
         self._logger = logging.getLogger(__name__)
         self.init_from_config_file()
         self._write_comments_section()
+        self._write_microscope_section()
     
     def write_config_file(self, file_path: str = None):
         """
@@ -140,4 +142,13 @@ class Config(configparser.ConfigParser):
             self.add_section(section)
         self.set(section, "COMMENTS", "PLEASE DO NOT EDIT UNLESS YOU KNOW WHAT YOU ARE DOING")
         self.set(section, "unit_comments", 'All "exposure" attributes are in units of ms and all "pos" attributes are in um.')
+        self.write_config_file(self.file_path)
+
+    def _write_microscope_section(self):
+        """
+        Adds in comments section to config if it doesn't exist.
+        """
+        if not self.has_section(MICROSCOPE_CONFIG_SECTION):
+            self.add_section(MICROSCOPE_CONFIG_SECTION)
+        self.set(MICROSCOPE_CONFIG_SECTION, MICROSCOPE_CONFIG_OPTION, microscope.name)
         self.write_config_file(self.file_path)
