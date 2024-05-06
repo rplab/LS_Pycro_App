@@ -185,7 +185,7 @@ class CLSAcquisition(Acquisition):
             Galvo.set_dslm_mode()
 
     def _init_plc(self):
-        Plc.set_for_z_stack(self._acq_settings.get_first_step_size())
+        Plc.set_for_z_stack(self._acq_settings.get_first_step_size(), self._adv_settings.z_stack_stage_speed)
 
     def _reset_hardware(self):
         Plc.set_continuous_pulses(30)
