@@ -14,7 +14,7 @@ from LS_Pycro_App.views.py.htls_adv_settings_dialog import Ui_HTLSAdvSettingsDia
 from LS_Pycro_App.views.py.htls_main_window import Ui_HTLSMainWindow
 from LS_Pycro_App.views.py.kla_main_window import Ui_KlaMainWindow
 from LS_Pycro_App.views.py.microscope_select_dialog import Ui_MicroscopeSelectDialog
-from LS_Pycro_App.views.py.pump_and_rotation_dialog import Ui_PumpAndRotationDialog
+from LS_Pycro_App.views.py.htls_hardware_dialog import Ui_HTLSHardwareDialog
 from LS_Pycro_App.views.py.wil_main_window import Ui_WilMainWindow
 
 
@@ -107,7 +107,7 @@ class MicroscopeSelectDialog(Ui_MicroscopeSelectDialog, QtWidgets.QDialog):
         self.setupUi(self)
 
 
-class PumpAndRotationDialog(Ui_PumpAndRotationDialog, QtWidgets.QDialog):
+class HTLSHardwareDialog(Ui_HTLSHardwareDialog, QtWidgets.QDialog):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
