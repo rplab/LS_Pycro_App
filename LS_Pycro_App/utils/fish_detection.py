@@ -1,13 +1,15 @@
 import numpy as np
 import skimage
-from skimage import measure, morphology
 import skimage.measure
+import scipy
+from skimage import measure, morphology
 
 from LS_Pycro_App.hardware import Camera, Stage
 from LS_Pycro_App.utils import pycro, stitch, exceptions
 from LS_Pycro_App.utils.pycro import core
 
 
+CORR_TEMPLATE_PATH = "/LS_Pycro_App/utils/fish_template.png"
 HOLE_AREA_UM = 4500
 FEATURE_AREA_UM = 65000
 SAME_FEATURE_MAX_D = 300
@@ -15,17 +17,22 @@ ECCENTRICITY_LIMIT = 0.95
 NUM_FEATURES = 2
 STD_FACTOR = 1.6
 DX_FACTOR = 0.2
+CROSS_CORRECTION = 1400
 
 
-def wait_for_fish(bg_image: np.ndarray):
-    fish_detected = False
-    bg_image_mean = np.mean(bg_image)
-    bg_image_std = np.std(bg_image)
-    while not fish_detected:
-        Camera.snap_image()
-        image = pycro.pop_next_image().get_raw_pixels()
-        if np.mean(image) < bg_image_mean - bg_image_std:
-            return True
+def wait_for_fish():
+    core.stop_sequence_acquisition()
+    core.start_continuous_sequence_acquisition(0)
+    while True:
+        if core.get_remaining_image_count() > 0:
+            image = pycro.pop_next_image().get_raw_pixels()
+            if np.mean(image) < 30:
+                break
+            core.clear_circular_buffer()
+        else:
+            core.sleep(0.5)
+    core.stop_sequence_acquisition()
+    core.clear_circular_buffer()
         
         
 def get_stitched_image(stitched_positions):
@@ -62,13 +69,7 @@ def get_stitched_positions(start_pos, end_pos, x_step_size):
 def get_region_1_x_offset(start_pos, end_pos, x_step_size):
     positions = get_stitched_positions(start_pos, end_pos, x_step_size)
     capillary_image = get_stitched_image(positions)
-    features = get_features(capillary_image)
-    #If no features are found, assume system was triggered by a bubble or some other dark object
-    #that isn't a fish.
-    if not features:
-        raise exceptions.BubbleException
-    centroids = get_centroids(features)
-    return get_x_offset_um(centroids, capillary_image.shape, left_side_entry=False)
+    return get_cross_cor_offset_um(capillary_image)
 
 
 def get_features(capillary_image):
@@ -88,7 +89,7 @@ def get_features(capillary_image):
     return [f for f in measure.regionprops(labeled) if f.eccentricity < ECCENTRICITY_LIMIT and f.area > core.get_pixel_size_um()*FEATURE_AREA_UM]
             
 
-def get_centroids(features: list[measure._regionprops._RegionProperties]):
+def get_centroids(features):
     centroids = [f.centroid for f in features]
     while len(centroids) > NUM_FEATURES:
         for centroid in centroids:
@@ -138,3 +139,23 @@ def get_x_offset_um(centroids: list[tuple[float, float]],
 
 def fish_detected(image, bg_image_std, bg_image_mean):
     return np.mean(image) < bg_image_mean - bg_image_std
+
+
+def get_cross_cor_offset_um(capillary_image: np.ndarray):
+    template = skimage.io.imread(CORR_TEMPLATE_PATH)
+    capillary = skimage.exposure.rescale_intensity(capillary_image)
+    image_1d = np.mean(capillary, 0)
+    template_1d = np.mean(template, 0)
+    #cross correlation requires functions to be centered at zero.
+    zero_rms_stitched = image_1d - np.mean(image_1d)
+    zero_rms_template = template_1d - np.mean(template_1d)
+    cross_offset = np.argmax(scipy.signal.correlate(zero_rms_stitched, zero_rms_template, "valid"))
+    #CROSS_CORRECTION is the position of region 1 relative to the template.
+    #We subtract the offset from the image width because position of fish is relative to
+    #where the fish entered from (the start position), which is currently from the right 
+    #side of the image.
+    corrected_offset = capillary_image.shape[1] - (cross_offset + CROSS_CORRECTION)
+    #returns offset as um offset for stage
+    return corrected_offset*core.get_pixel_size_um()
+
+
