@@ -17,12 +17,11 @@ class Stage(ABC):
     
     1. Abstract the shared code 
 
-    2. Make an interface that's easy to inherit
+    2. Make the shared code easy to inherit
     
     Since the hardware of the two microscopes is almost identical, I was able
     to abstract away almost everything, the only differences being the "abstract attributes" below.
-    As for the interface part, if this were a module, changing the variables at the module level
-    would be 
+    As for the interface part, if this were a module, changing these attributes would be more c
 
     Now, Python doesn't inherently have abstract attributes (you would need to set abstract properties, 
     which I think would be more confusing and ugly), so I decided to write a class wrapper to do so! This
@@ -62,6 +61,7 @@ class Stage(ABC):
     XY_STAGE_NAME : str = core.get_xy_stage_device()
     Z_STAGE_NAME : str = core.get_focus_device()
 
+    _HALT_COMMAND = "HALT"
     _SERIAL : str = "SerialCommand"
     _SERIAL_NUM_DECIMALS : int = 6
     _JOYSTICK_ENABLE_COMMAND : str = "J X+ Y+ Z+"
@@ -310,6 +310,16 @@ class Stage(ABC):
         #Willamette set up to set its position to the inverse of the position set.      
         core.set_position(cls.Z_STAGE_NAME, z_pos)
         cls._logger.info(f"Stage z position set to {z_pos} um")
+
+
+    @classmethod
+    @handle_exception
+    def halt(cls) -> int:
+        """
+        Retrieves current X-position from stage and returns it
+        """
+        cls.send_command(cls._HALT_COMMAND)
+        cls._logger.info("Stage halted")
 
 
     @classmethod
