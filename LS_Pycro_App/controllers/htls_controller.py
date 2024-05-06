@@ -6,16 +6,16 @@ from pathlib import Path
 
 from PyQt5 import QtGui, QtWidgets
 
-from LS_Pycro_App.controllers.select_controller import microscope, MicroscopeConfig
 from LS_Pycro_App.models.acq_settings import Region
 from LS_Pycro_App.views import BrowseDialog, HTLSAcqRegionsDialog, HTLSAcqSettingsDialog, HTLSAdvSettingsDialog
 from LS_Pycro_App.acquisition.main import HTLSAcquisition
 from LS_Pycro_App.models.acq_settings import HTLSSettings
 from LS_Pycro_App.hardware import Stage, Camera
+from LS_Pycro_App.hardware.camera import Hamamatsu
 from LS_Pycro_App.utils import exceptions
 
 
-class AcqController(object):
+class HTLSController(object):
     """
     This is the controller of the acquisition module. The main model is the AcqSettings class and the
     view is  AcquisitionRegionsDialog (and AcquisitionDialog). This class controls
@@ -60,7 +60,7 @@ class AcqController(object):
 
         self._fish = self._htls_settings.fish_settings
         self._region_num = 0
-        self._region = self._htls_settings.fish_settings.region_list[self._region_num]
+        self._region = Region()
 
         self._set_widget_models()
         self._set_validators()
@@ -89,6 +89,7 @@ class AcqController(object):
         self.regions_dialog.video_available_list_view.setModel(self._video_available_model)
         self.regions_dialog.video_used_list_view.setModel(self._video_used_model)
         self._acq_settings_dialog.channel_order_list_view.setModel(self._channel_order_model)
+        self._adv_settings_dialog.stage_speed_combo_box.setModel(self._speed_list_model)
 
 
         # uses core channel list to initialize list model values
@@ -100,6 +101,7 @@ class AcqController(object):
         for speed in self._adv_settings.speed_list:
             item = QtGui.QStandardItem(str(speed))
             self._speed_list_model.appendRow(item)
+        self._adv_settings_dialog.stage_speed_combo_box.setCurrentText(str(self._adv_settings.z_stack_stage_speed))
 
 
     def _set_validators(self):
@@ -118,7 +120,7 @@ class AcqController(object):
         self.regions_dialog.video_num_frames_line_edit.setValidator(validator)
 
         validator = QtGui.QDoubleValidator()
-        validator.setDecimals(AcqController.NUM_DECIMAL_PLACES)
+        validator.setDecimals(HTLSController.NUM_DECIMAL_PLACES)
         validator.setBottom(Camera.MIN_EXPOSURE)
         validator.setTop(Camera.MAX_EXPOSURE)
         self.regions_dialog.snap_exposure_line_edit.setValidator(validator)
@@ -200,10 +202,10 @@ class AcqController(object):
         self.regions_dialog.region_table_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
         #custom exposure should always be allowed on WIL and lsrm isn't supported.
-        is_wil = microscope == MicroscopeConfig.WILLAMETTE
-        self._adv_settings_dialog.custom_exposure_check_box.setVisible(not is_wil)
-        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(is_wil)
-        self._adv_settings_dialog.lsrm_check_box.setEnabled(not is_wil)
+        is_hamamatsu = Camera is Hamamatsu
+        self._adv_settings_dialog.custom_exposure_check_box.setVisible(is_hamamatsu)
+        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(not is_hamamatsu)
+        self._adv_settings_dialog.lsrm_check_box.setEnabled(is_hamamatsu)
 
     def _update_dialogs(self):
         """
@@ -220,7 +222,7 @@ class AcqController(object):
         self._update_region_table()
         self._update_acq_settings_dialog()
         self._update_adv_settings_dialog()
-        self._acq_settings.write_to_config()
+        self._htls_settings.write_to_config()
 
     def _update_acq_settings_dialog(self):
         """
@@ -397,7 +399,7 @@ class AcqController(object):
                    "exp", 
                    "chans"]
         self._region_table_model.setHorizontalHeaderLabels(headers)
-        for region_num, region in enumerate(self._fish):
+        for region_num, region in enumerate(self._fish.region_list):
             row_list = [str(region_num + 1),
                         str(region.z_stack_enabled),
                         str(region.z_stack_step_size), 
@@ -792,7 +794,7 @@ class AcqController(object):
     def _custom_exposure_check_box_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(checked)
-        if microscope == MicroscopeConfig.KLAMATH:
+        if Camera is Hamamatsu:
             self._adv_settings.edge_trigger_enabled = checked
         self._update_dialogs()
 

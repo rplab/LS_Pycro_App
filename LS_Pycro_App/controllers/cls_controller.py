@@ -11,10 +11,11 @@ from LS_Pycro_App.models.acq_settings import Region, Fish, AcqSettings, AcqOrder
 from LS_Pycro_App.controllers.select_controller import microscope, MicroscopeConfig
 from LS_Pycro_App.views import AcqRegionsDialog, AcqOrderDialog, AcqSettingsDialog, AdvSettingsDialog, BrowseDialog
 from LS_Pycro_App.hardware import Stage, Camera
+from LS_Pycro_App.hardware.camera import Hamamatsu
 from LS_Pycro_App.utils import constants, exceptions
 
 
-class AcqController(object):
+class CLSController(object):
     """
     This is the controller of the acquisition module. The main model is the AcqSettings class and the
     view is  AcquisitionRegionsDialog (and AcquisitionDialog). This class controls
@@ -102,13 +103,11 @@ class AcqController(object):
             self._video_available_model.appendRow(QtGui.QStandardItem(channel))
 
         for speed in self._adv_settings.speed_list:
-            item = QtGui.QStandardItem(str(speed))
-            self._speed_list_model.appendRow(item)
+            self._adv_settings_dialog.stage_speed_combo_box.addItem(str(speed))
         self._adv_settings_dialog.stage_speed_combo_box.setCurrentText(str(self._adv_settings.z_stack_stage_speed))
 
         for order in AcqOrder:
-            item = QtGui.QStandardItem(order.name)
-            self._acq_order_model.appendRow(item)
+            self._adv_settings_dialog.acq_order_combo_box.addItem(order.name)
 
     def _set_validators(self):
         # Validators and extra properties
@@ -131,7 +130,7 @@ class AcqController(object):
         self._adv_settings_dialog.end_videos_num_frames_line_edit.setValidator(validator)
 
         validator = QtGui.QDoubleValidator()
-        validator.setDecimals(AcqController.NUM_DECIMAL_PLACES)
+        validator.setDecimals(CLSController.NUM_DECIMAL_PLACES)
         validator.setBottom(Camera.MIN_EXPOSURE)
         validator.setTop(Camera.MAX_EXPOSURE)
         self.regions_dialog.snap_exposure_line_edit.setValidator(validator)
@@ -233,10 +232,10 @@ class AcqController(object):
         self._acq_settings_dialog.memory_line_edit.setEnabled(False)
 
         #custom exposure should always be allowed on WIL and lsrm isn't supported.
-        is_wil = microscope == MicroscopeConfig.WILLAMETTE
-        self._adv_settings_dialog.custom_exposure_check_box.setVisible(not is_wil)
-        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(is_wil)
-        self._adv_settings_dialog.lsrm_check_box.setEnabled(not is_wil)
+        is_hamamatsu = issubclass(Camera, Hamamatsu)
+        self._adv_settings_dialog.custom_exposure_check_box.setVisible(is_hamamatsu)
+        self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(not is_hamamatsu)
+        self._adv_settings_dialog.lsrm_check_box.setEnabled(is_hamamatsu)
 
     def _update_dialogs(self):
         """
@@ -297,7 +296,7 @@ class AcqController(object):
             self._acq_settings_dialog.total_images_line_edit.setText(str(self._acq_settings.total_num_images))
 
         memory_gb = self._acq_settings.size_mb*constants.MB_TO_GB
-        self._acq_settings_dialog.memory_line_edit.setText(str(round(memory_gb, AcqController.NUM_DECIMAL_PLACES)))
+        self._acq_settings_dialog.memory_line_edit.setText(str(round(memory_gb, CLSController.NUM_DECIMAL_PLACES)))
 
     def _update_adv_settings_dialog(self):
         self._update_adv_z_stack_widgets()
@@ -909,7 +908,7 @@ class AcqController(object):
     def _custom_exposure_check_box_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(checked)
-        if microscope == MicroscopeConfig.KLAMATH:
+        if issubclass(Camera, Hamamatsu):
             self._adv_settings.edge_trigger_enabled = checked
         self._update_dialogs()
 
