@@ -24,8 +24,8 @@ FILL_PORT = Port.E
 ACQ_PORT = Port.O
 
 
-com = serial.Serial(_COM_PORT, timeout=0.3)
-port = ACQ_PORT
+com = serial.Serial(_COM_PORT, timeout=0.05)
+port = FILL_PORT
 speed = DEFAULT_SPEED
 velocity = DETECTION_VELOCITY
 
@@ -45,16 +45,17 @@ def is_full():
 
 
 def get_position():
-    com.reset_output_buffer()
-    _write_command("?")
-    try:
+    position = None
+    while position is None:
+        com.reset_output_buffer()
+        _write_command("?")
         #? command returns a bunch of characters in addition to the position.
         #This grabs the position from the string of characters.
-        position = int((str(com.read(30)).split("`")[1].split("\\")[0]))
-    except ValueError:
-        #If int() fails (ie if no position is returned), reattempt until it does.
-        get_position()
-    return position
+        try:
+            position = int((str(com.read(30)).split("`")[1].split("\\")[0]))
+            return position
+        except (IndexError, ValueError):
+            continue
 
 
 def fill():
@@ -62,27 +63,29 @@ def fill():
     velocity = FILL_VELOCITY
     set_port(port)
     set_velocity(velocity)
-    set_max()
     while get_position() < MAX_POSITION:
+        set_max()
         time.sleep(POSITION_WAIT_S)
+        terminate()
     terminate()
 
 
 def empty():
     set_port(FILL_PORT)
     set_velocity(FILL_VELOCITY)
-    set_zero()
     while get_position() > MIN_POSITION:
+        set_zero()
         time.sleep(POSITION_WAIT_S)
+        terminate()
     terminate()
 
 
-def set_velocity(velocity: float):
+def set_velocity(velocity: int):
     velocity = velocity
     _write_command(f"V{velocity}")
 
 
-def set_speed(speed: float):
+def set_speed(speed: int):
     speed = speed
     _write_command(f"S{speed}")
 
@@ -99,18 +102,19 @@ def terminate():
     _write_command("T")
 
 
-def set_port(new_port: Port):
+def set_port(new_port: Port | str):
     """
     Accepted arguments are "E", "I", or "O".
     """
     global port
+    terminate()
     with contextlib.suppress(KeyError):
         if isinstance(new_port, str):
-            port = Port[port]
-            _write_command(port)
-        elif Port[port] in Port:
-            port = port
-            _write_command(port.value)
+            port = Port[new_port]
+            _write_command(port.name)
+        elif new_port in Port:
+            port = new_port
+            _write_command(port.name)
             
 
 def close_com():
@@ -119,3 +123,4 @@ def close_com():
 
 def _write_command(command: str):
     com.write(f"{_START}{command}{_END}".encode())
+    time.sleep(0.2)
