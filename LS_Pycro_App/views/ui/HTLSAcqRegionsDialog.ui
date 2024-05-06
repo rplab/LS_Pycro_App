@@ -1132,7 +1132,7 @@
    <property name="geometry">
     <rect>
      <x>340</x>
-     <y>270</y>
+     <y>250</y>
      <width>81</width>
      <height>16</height>
     </rect>
@@ -1153,9 +1153,9 @@
   <widget class="QPushButton" name="next_region_button">
    <property name="geometry">
     <rect>
-     <x>510</x>
-     <y>310</y>
-     <width>81</width>
+     <x>390</x>
+     <y>280</y>
+     <width>111</width>
      <height>23</height>
     </rect>
    </property>
@@ -1191,9 +1191,9 @@
   <widget class="QPushButton" name="prev_region_button">
    <property name="geometry">
     <rect>
-     <x>160</x>
-     <y>310</y>
-     <width>101</width>
+     <x>270</x>
+     <y>280</y>
+     <width>111</width>
      <height>23</height>
     </rect>
    </property>

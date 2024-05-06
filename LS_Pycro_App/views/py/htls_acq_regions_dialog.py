@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'C:\Users\marim\Desktop\LS_Pycro_App\LS_Pycro_App\views\ui\HTLSAcqRegionsDialog.ui'
+# Form implementation generated from reading ui file 'C:\Users\Raghu\Desktop\Microscope Software\LS_Pycro_App\LS_Pycro_App\views\ui\HTLSAcqRegionsDialog.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.10
 #
@@ -289,7 +289,7 @@ class Ui_HTLSAcqRegionsDialog(object):
         self.region_table_view.setGeometry(QtCore.QRect(-10, 650, 801, 161))
         self.region_table_view.setObjectName("region_table_view")
         self.region_label = QtWidgets.QLabel(HTLSAcqRegionsDialog)
-        self.region_label.setGeometry(QtCore.QRect(340, 270, 81, 16))
+        self.region_label.setGeometry(QtCore.QRect(340, 250, 81, 16))
         font = QtGui.QFont()
         font.setBold(True)
         font.setWeight(75)
@@ -297,7 +297,7 @@ class Ui_HTLSAcqRegionsDialog(object):
         self.region_label.setAlignment(QtCore.Qt.AlignCenter)
         self.region_label.setObjectName("region_label")
         self.next_region_button = QtWidgets.QPushButton(HTLSAcqRegionsDialog)
-        self.next_region_button.setGeometry(QtCore.QRect(510, 310, 81, 23))
+        self.next_region_button.setGeometry(QtCore.QRect(390, 280, 111, 23))
         self.next_region_button.setObjectName("next_region_button")
         self.remove_region_button = QtWidgets.QPushButton(HTLSAcqRegionsDialog)
         self.remove_region_button.setGeometry(QtCore.QRect(270, 310, 111, 23))
@@ -307,7 +307,7 @@ class Ui_HTLSAcqRegionsDialog(object):
         self.remove_region_button.setFont(font)
         self.remove_region_button.setObjectName("remove_region_button")
         self.prev_region_button = QtWidgets.QPushButton(HTLSAcqRegionsDialog)
-        self.prev_region_button.setGeometry(QtCore.QRect(160, 310, 101, 23))
+        self.prev_region_button.setGeometry(QtCore.QRect(270, 280, 111, 23))
         self.prev_region_button.setObjectName("prev_region_button")
         self.add_region_button = QtWidgets.QPushButton(HTLSAcqRegionsDialog)
         self.add_region_button.setGeometry(QtCore.QRect(390, 310, 111, 23))
