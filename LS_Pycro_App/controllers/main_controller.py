@@ -30,26 +30,29 @@ API is. Will thing more about this.
 
 from PyQt5 import QtCore
 
-from LS_Pycro_App.controllers.cls_controller import AcqController
+from LS_Pycro_App.controllers.cls_controller import CLSController
+from LS_Pycro_App.controllers.htls_controller import HTLSController
 from LS_Pycro_App.controllers.galvo_controller import GalvoController
-from LS_Pycro_App.controllers.rotation_and_pump_controller import RotationAndPumpController
+from LS_Pycro_App.controllers.htls_hardware_controller import HTLSHardwareController
 from LS_Pycro_App.controllers.select_controller import microscope, MicroscopeConfig
 from LS_Pycro_App.views import HTLSMainWindow, KlaMainWindow, WilMainWindow
 
 class MainController(object):
     def __init__(self):
         #Same instances of studio, core, mm_hardware_commands, and spim_commands used throughout
-        self._acquisition_controller = AcqController()
         if microscope == MicroscopeConfig.KLAMATH:
             self._main_window = KlaMainWindow()
+            self._acquisition_controller = CLSController()
             self._galvo_controller = GalvoController()
             self._main_window.galvo_button.clicked.connect(self._galvo_button_clicked)
         elif microscope == MicroscopeConfig.WILLAMETTE:
             self._main_window = WilMainWindow()
+            self._acquisition_controller = CLSController()
         elif microscope == MicroscopeConfig.HTLS:
             self._main_window = HTLSMainWindow()
+            self._acquisition_controller = HTLSController()
             self._galvo_controller = GalvoController()
-            self._rotation_and_pump_controller = RotationAndPumpController()
+            self._htls_hardware_controller = HTLSHardwareController()
             self._main_window.galvo_button.clicked.connect(self._galvo_button_clicked)
             self._main_window.rotation_and_pump_button.clicked.connect(self._rotation_and_pump_button_clicked)
         
@@ -67,8 +70,8 @@ class MainController(object):
         self._galvo_controller.galvo_dialog.activateWindow()
 
     def _rotation_and_pump_button_clicked(self):
-        self._rotation_and_pump_controller.dialog.show()
-        self._rotation_and_pump_controller.dialog.activateWindow()
+        self._htls_hardware_controller._dialog.show()
+        self._htls_hardware_controller._dialog.activateWindow()
 
     def _regions_button_clicked(self):
         self._acquisition_controller.regions_dialog.show()
