@@ -64,6 +64,7 @@ class Camera(ABC):
         Snaps an image with the camera. Image is then put in circular buffer where it can be grabbed with
         utils.pycro.pop_next_image(), which will return the image as a Micro-Manager image object.
         """
+        core.stop_sequence_acquisition()
         #Originally when I scripted with MM, I would just use the snap() method in the studio.acquisition class, 
         # but this doesn't work with lsrm for some reason.
         core.start_sequence_acquisition(1, 0, True)
@@ -289,5 +290,6 @@ class Hamamatsu(Camera):
         Sets binning to given binning, Binning should be an integer: 1 for no binning, 2 for 2x2 binning
         or 4 for 4x4 binning.
         """
-        cls.set_property("Binning", binning)
+        cls.set_property("Binning", f"{binning}x{binning}")
+        cls.wait_for_camera()
         
