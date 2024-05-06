@@ -1,4 +1,5 @@
 import copy
+import os
 import time
 import logging
 from abc import ABC, abstractmethod
@@ -192,11 +193,12 @@ class AcquisitionSequence(ABC):
     # directory methods
     def _update_directory(self, required_mb: float):
         if self._adv_settings.backup_directory_enabled and not self.backup_used:
-            is_enough_space = dir_functions.is_enough_space(
-                required_mb, self._adv_settings.backup_directory_limit, self._acq_directory.root)
-            if not is_enough_space:
-                self._acq_directory.set_root(self._adv_settings.backup_directory)
-                self.backup_used = True
+            if os.path.isdir(self._acq_directory.root):
+                is_enough_space = dir_functions.is_enough_space(
+                    required_mb, self._adv_settings.backup_directory_limit, self._acq_directory.root)
+                if not is_enough_space:
+                    self._acq_directory.set_root(self._adv_settings.backup_directory)
+                    self.backup_used = True
 
     # acq_dialog methods
     def _update_region_label(self, region_num):
