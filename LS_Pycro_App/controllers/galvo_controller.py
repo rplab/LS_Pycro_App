@@ -41,8 +41,6 @@ class GalvoController(object):
     def __init__(self):
         self._logger = logging.getLogger(self.__class__.__name__)
         self.galvo_dialog = GalvoDialog()
-        # If more scanning modes are made in the future, use enum instead of bool and strings
-        self._is_lsrm = False
         # Set scanning combo box model
         self._scan_mode_model = QtGui.QStandardItemModel()
         self.galvo_dialog.scan_mode_combo_box.setModel(self._scan_mode_model)
@@ -139,7 +137,7 @@ class GalvoController(object):
             Galvo.settings.lsrm_laser_delay, self._NUM_DECIMAL_PLACES))
         self.galvo_dialog.num_lines_line_edit.setText(str(Galvo.settings.lsrm_num_lines))
 
-        if self._is_lsrm:
+        if Galvo.settings.is_lsrm:
             self.galvo_dialog.offset_line_edit.setText(general_functions.float_to_str(
                 Galvo.settings.lsrm_cur_pos, self._NUM_DECIMAL_PLACES))
         else:
@@ -150,62 +148,62 @@ class GalvoController(object):
         """
         Switches between lsrm dialog mode and dslm dialog based on state of lsrm_bool. 
         """
-        if self._is_lsrm:
+        if Galvo.settings.is_lsrm:
             self.galvo_dialog.offset_label.setText("Position")
             self.galvo_dialog.resize(438, 350)
         else:
             self.galvo_dialog.offset_label.setText("Offset")
             self.galvo_dialog.resize(438, 140)
 
-        self.galvo_dialog.width_label.setVisible(not self._is_lsrm)
-        self.galvo_dialog.width_line_edit.setVisible(not self._is_lsrm)
-        self.galvo_dialog.width_unit_label.setVisible(not self._is_lsrm)
-        self.galvo_dialog.width_big_neg_button.setVisible(not self._is_lsrm)
-        self.galvo_dialog.width_small_neg_button.setVisible(not self._is_lsrm)
-        self.galvo_dialog.width_small_pos_button.setVisible(not self._is_lsrm)
-        self.galvo_dialog.width_big_pos_button.setVisible(not self._is_lsrm)
+        self.galvo_dialog.width_label.setVisible(not Galvo.settings.is_lsrm)
+        self.galvo_dialog.width_line_edit.setVisible(not Galvo.settings.is_lsrm)
+        self.galvo_dialog.width_unit_label.setVisible(not Galvo.settings.is_lsrm)
+        self.galvo_dialog.width_big_neg_button.setVisible(not Galvo.settings.is_lsrm)
+        self.galvo_dialog.width_small_neg_button.setVisible(not Galvo.settings.is_lsrm)
+        self.galvo_dialog.width_small_pos_button.setVisible(not Galvo.settings.is_lsrm)
+        self.galvo_dialog.width_big_pos_button.setVisible(not Galvo.settings.is_lsrm)
 
-        self.galvo_dialog.lsrm_lower_label.setVisible(self._is_lsrm)
-        self.galvo_dialog.lsrm_lower_line_edit.setVisible(self._is_lsrm)
-        self.galvo_dialog.lsrm_lower_unit_label.setVisible(self._is_lsrm)
-        self.galvo_dialog.lsrm_set_lower_button.setVisible(self._is_lsrm)
+        self.galvo_dialog.lsrm_lower_label.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.lsrm_lower_line_edit.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.lsrm_lower_unit_label.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.lsrm_set_lower_button.setVisible(Galvo.settings.is_lsrm)
 
-        self.galvo_dialog.lsrm_upper_label.setVisible(self._is_lsrm)
-        self.galvo_dialog.lsrm_upper_line_edit.setVisible(self._is_lsrm)
-        self.galvo_dialog.lsrm_upper_unit_label.setVisible(self._is_lsrm)
-        self.galvo_dialog.lsrm_set_upper_button.setVisible(self._is_lsrm)
+        self.galvo_dialog.lsrm_upper_label.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.lsrm_upper_line_edit.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.lsrm_upper_unit_label.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.lsrm_set_upper_button.setVisible(Galvo.settings.is_lsrm)
 
-        self.galvo_dialog.framerate_label.setVisible(self._is_lsrm)
-        self.galvo_dialog.framerate_line_edit.setVisible(self._is_lsrm)
-        self.galvo_dialog.framerate_unit_label.setVisible(self._is_lsrm)
-        self.galvo_dialog.framerate_neg_button.setVisible(self._is_lsrm)
-        self.galvo_dialog.framerate_pos_button.setVisible(self._is_lsrm)
+        self.galvo_dialog.framerate_label.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.framerate_line_edit.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.framerate_unit_label.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.framerate_neg_button.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.framerate_pos_button.setVisible(Galvo.settings.is_lsrm)
 
-        self.galvo_dialog.cam_delay_label.setVisible(self._is_lsrm)
-        self.galvo_dialog.cam_delay_line_edit.setVisible(self._is_lsrm)
-        self.galvo_dialog.cam_delay_unit_label.setVisible(self._is_lsrm)
-        self.galvo_dialog.cam_delay_neg_button.setVisible(self._is_lsrm)
-        self.galvo_dialog.cam_delay_pos_button.setVisible(self._is_lsrm)
+        self.galvo_dialog.cam_delay_label.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.cam_delay_line_edit.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.cam_delay_unit_label.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.cam_delay_neg_button.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.cam_delay_pos_button.setVisible(Galvo.settings.is_lsrm)
 
-        self.galvo_dialog.laser_delay_label.setVisible(self._is_lsrm)
-        self.galvo_dialog.laser_delay_line_edit.setVisible(self._is_lsrm)
-        self.galvo_dialog.laser_delay_unit_label.setVisible(self._is_lsrm)
-        self.galvo_dialog.laser_delay_neg_button.setVisible(self._is_lsrm)
-        self.galvo_dialog.laser_delay_pos_button.setVisible(self._is_lsrm)
+        self.galvo_dialog.laser_delay_label.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.laser_delay_line_edit.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.laser_delay_unit_label.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.laser_delay_neg_button.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.laser_delay_pos_button.setVisible(Galvo.settings.is_lsrm)
 
-        self.galvo_dialog.num_lines_label.setVisible(self._is_lsrm)
-        self.galvo_dialog.num_lines_line_edit.setVisible(self._is_lsrm)
+        self.galvo_dialog.num_lines_label.setVisible(Galvo.settings.is_lsrm)
+        self.galvo_dialog.num_lines_line_edit.setVisible(Galvo.settings.is_lsrm)
 
     def _set_scanning_mode(self):
         with contextlib.suppress(exceptions.HardwareException):
             if self.galvo_dialog.scanning_check_box.isChecked():
-                if self._is_lsrm:
+                if Galvo.settings.is_lsrm:
                     Plc.set_continuous_pulses(Galvo.settings.lsrm_framerate)
                     Galvo.set_lsrm_mode()
                 else:
                     Galvo.set_dslm_mode()
             else:
-                if self._is_lsrm:
+                if Galvo.settings.is_lsrm:
                     Galvo.set_lsrm_alignment_mode()
                 else:
                     Galvo.set_dslm_alignment_mode()
@@ -213,10 +211,10 @@ class GalvoController(object):
 
     def _scan_mode_combo_box_clicked(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._is_lsrm = self.galvo_dialog.scan_mode_combo_box.currentText() == GalvoController._LSRM_NAME
+        Galvo.settings.is_lsrm = self.galvo_dialog.scan_mode_combo_box.currentText() == GalvoController._LSRM_NAME
         self._set_scanning_mode()
         if self.galvo_dialog.scanning_check_box.isChecked():
-            if self._is_lsrm:
+            if Galvo.settings.is_lsrm:
                 Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
             else:
                 Camera.set_burst_mode()
@@ -227,9 +225,9 @@ class GalvoController(object):
         # If checked, starts laser scanning
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         if self.galvo_dialog.scanning_check_box.isChecked():
-            if self._is_lsrm:
+            if Galvo.settings.is_lsrm:
                 Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-        elif self._is_lsrm:
+        elif Galvo.settings.is_lsrm:
             Camera.set_burst_mode()
             Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
         self._set_scanning_mode()
@@ -239,7 +237,7 @@ class GalvoController(object):
         # current position for lsrm, some extra logic is needed to ensure it's
         # changing the correct attributes.
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        if self._is_lsrm:
+        if Galvo.settings.is_lsrm:
             Galvo.settings.lsrm_cur_pos -= GalvoController._OFFSET_BIG_STEP
         else:
             Galvo.settings.dslm_offset -= GalvoController._OFFSET_BIG_STEP
@@ -250,7 +248,7 @@ class GalvoController(object):
 
     def _offset_small_neg_button_clicked(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        if self._is_lsrm:
+        if Galvo.settings.is_lsrm:
             Galvo.settings.lsrm_cur_pos -= GalvoController._OFFSET_SMALL_STEP
         else:
             Galvo.settings.dslm_offset -= GalvoController._OFFSET_SMALL_STEP
@@ -261,7 +259,7 @@ class GalvoController(object):
 
     def _offset_small_pos_button_clicked(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        if self._is_lsrm:
+        if Galvo.settings.is_lsrm:
             Galvo.settings.lsrm_cur_pos += GalvoController._OFFSET_SMALL_STEP
         else:
             Galvo.settings.dslm_offset += GalvoController._OFFSET_SMALL_STEP
@@ -272,7 +270,7 @@ class GalvoController(object):
 
     def _offset_big_pos_button_clicked(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        if self._is_lsrm:
+        if Galvo.settings.is_lsrm:
             Galvo.settings.lsrm_cur_pos += GalvoController._OFFSET_BIG_STEP
         else:
             Galvo.settings.dslm_offset += GalvoController._OFFSET_BIG_STEP
@@ -430,7 +428,7 @@ class GalvoController(object):
         with contextlib.suppress(ValueError):
             if self.galvo_dialog.offset_line_edit.hasAcceptableInput():
                 offset = float(self.galvo_dialog.offset_line_edit.text())
-                if self._is_lsrm:
+                if Galvo.settings.is_lsrm:
                     Galvo.settings.lsrm_cur_pos = offset
                 else:
                     Galvo.settings.dslm_offset = offset

@@ -294,10 +294,11 @@ class Region():
         user_config.write_class(self, Region.config_section(fish_num, region_num))
 
     def config_section(fish_num, region_num):
-        if isinstance(fish_num, str):
-            return f"Fish {fish_num} Region {region_num}"
-        else:
-            return f"Fish {fish_num + 1} Region {region_num + 1}"
+        if isinstance(fish_num, int):
+            fish_num += 1
+        if isinstance(region_num, int):
+            region_num += 1
+        return f"Fish {fish_num} Region {region_num}"
 
 
 class Fish():
@@ -433,10 +434,28 @@ class Fish():
 
     #config api methods
     def init_from_config(self, fish_num: int) -> bool:
-        return user_config.init_class(self, Fish.config_section(fish_num))
+        initialized = user_config.init_class(self, Fish.config_section(fish_num))
+        if initialized:
+            self._init_regions_from_config(fish_num)
+        return initialized
 
     def write_to_config(self, fish_num: int):
         user_config.write_class(self, Fish.config_section(fish_num))
+        self._write_regions_to_config(fish_num)
+
+    def _init_regions_from_config(self, fish_num: int):
+        region_num = 0
+        while True:
+            region = Region()
+            if region.init_from_config(fish_num, region_num):
+                self.region_list.append(region)
+            else:
+                break
+            region_num += 1 
+
+    def _write_regions_to_config(self, fish_num: int):
+        for region_num, region in enumerate(self.region_list):
+            region.write_to_config(fish_num, region_num)
 
     def config_section(fish_num: int):
         if isinstance(fish_num, str):
@@ -469,11 +488,7 @@ class AdvSettings():
 
     #### spectral_video_enabled : bool
         If True, videos will be spectral. Same as spectral z_stack except stage does notmove between spectral 
-        images.
-
-    #### lsrm_bool : bool
-        If True, lightsheet readout mode is enabled. See SPIMGalvo lsrm(), lsrm methods in HardwareCommands, 
-        and Hamamatsu documentation for more details.    
+        images.  
 
     #### edge_trigger_bool : bool
         If True, camera is set to edge trigger mode. If False, camera is set to sync readout. See below 
@@ -500,7 +515,6 @@ class AdvSettings():
         self.z_stack_stage_speed: int = 30
         self.speed_list: list[int] = self.get_speed_list()
         self.spectral_video_enabled: bool = False
-        self.lsrm_enabled: bool = False
         self.edge_trigger_enabled: bool = False
         self.acq_order = AcqOrder.TIME_SAMP
         self.backup_directory_enabled: bool = False
@@ -528,7 +542,7 @@ class AdvSettings():
 
     def get_speed_list(self):
         self.speed_list = [15, 30]
-        if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
+        if issubclass(Camera, LS_Pycro_App.hardware.camera.Hamamatsu):
             self.speed_list.append(45)
             self.speed_list.append(60)
         return self.speed_list
@@ -537,7 +551,7 @@ class AdvSettings():
         user_config.write_class(self)
 
     def _get_z_stack_exposure(self, value):
-        if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
+        if issubclass(Camera, LS_Pycro_App.hardware.camera.Hamamatsu):
             if not self.spectral_z_stack_enabled:
                 if not self.edge_trigger_enabled:
                     return round((1/(self.z_stack_stage_speed))*constants.S_TO_MS, 3)
@@ -546,7 +560,7 @@ class AdvSettings():
                     return round(general_functions.value_in_range(value, Camera.MIN_EXPOSURE, max_exposure), 3)
             else:
                 return max(value, Camera.MIN_EXPOSURE)
-        elif Camera == LS_Pycro_App.hardware.camera.Pco:
+        elif issubclass(Camera, LS_Pycro_App.hardware.camera.Pco):
             if not self.spectral_z_stack_enabled:
                 #Maximum exp when performing continuous z-stack is floor(1/z_stack_speed) due to how the triggering works. 
                 #This makes it so that if continuous z-stack is enabled and an exp time greater than this value is entered, 
@@ -798,18 +812,7 @@ class AcqSettings():
                 self.fish_list.append(fish)
             else:
                 break
-            self._init_regions_from_config(fish, fish_num)
             fish_num += 1
-    
-    def _init_regions_from_config(self, fish: Fish, fish_num: int):
-        region_num = 0
-        while True:
-            region = Region()
-            if region.init_from_config(fish_num, region_num):
-                fish.region_list.append(region)
-            else:
-                break
-            region_num += 1 
 
     def _remove_fish_sections(self):
         """
@@ -827,8 +830,6 @@ class AcqSettings():
         self._remove_fish_sections()
         for fish_num, fish in enumerate(self.fish_list):
             fish.write_to_config(fish_num)
-            for region_num, region in enumerate(fish.region_list):
-                region.write_to_config(fish_num, region_num)
 
     #misc privates
     def init_channel_order_list(self):
@@ -910,8 +911,6 @@ class HTLSSettings():
     def __init__(self):
         self.acq_settings: AcqSettings = AcqSettings()
         self.fish_settings: Fish = Fish()
-        #Start off with one region so that region settings can be set
-        self.fish_settings.append_blank_region()
         self.capillary_start_pos: list[int] = [0, 0, 0]
         self.capillary_end_pos: list[int] = [0, 0, 0]
         self.num_fish: int = 0
@@ -922,8 +921,7 @@ class HTLSSettings():
     def init_from_config(self):
         user_config.init_class(self)
         user_config.init_class(self.acq_settings)
-        user_config.init_class(self.fish_settings, HTLSSettings.FISH_SETTINGS_SECTION)
-        self.fish_settings.init_from_config(0)
+        self.init_fish_settings_from_config()
         self.acq_settings.init_channel_order_list()
 
     def init_fish_settings_from_config(self):
@@ -939,7 +937,18 @@ class HTLSSettings():
         
     def write_to_config(self):
         user_config.write_class(self)
-        user_config.write_class(self.fish_settings, HTLSSettings.FISH_SETTINGS_SECTION)
-        for region_num, region in enumerate(self.fish_settings.region_list):
-            region.write_to_config(HTLSSettings.REGION_FISH_NUM, region_num)
+        self._remove_fish_settings_sections()
+        self.fish_settings.write_to_config(HTLSSettings.REGION_FISH_NUM)
         user_config.write_class(self.acq_settings)
+
+    def _remove_fish_settings_sections(self):
+        """
+        Checks for all sections that match format of region_section and fish_section and removes them.
+        Example: "Fish 1 Notes" is of the form f"Fish {'[0-9]'} Notes", as is "Fish 150 Notes",
+        so bool(re.match()) returns True.
+        """
+        for section in user_config.sections():
+            region_section_bool = bool(re.match(Region.config_section(HTLSSettings.REGION_FISH_NUM, '[0-9]'), section))
+            fish_section_bool = bool(re.match(Fish.config_section(HTLSSettings.REGION_FISH_NUM), section))
+            if region_section_bool or fish_section_bool:
+                user_config.remove_section(section)

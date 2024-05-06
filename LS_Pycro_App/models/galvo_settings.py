@@ -78,6 +78,7 @@ class GalvoSettings(object):
     NUM_LINES_TOP_LIMIT = 80
 
     def __init__(self):
+        self.is_lsrm = False
         self.focus = 0.
         self._dslm_offset = 0.
         self._dslm_scan_width = 1.1
@@ -151,7 +152,6 @@ class GalvoSettings(object):
     def lsrm_framerate(self, value):
         self._lsrm_framerate = int(general_functions.value_in_range(
             value, self.FRAMERATE_BOT_LIMIT, self.FRAMERATE_TOP_LIMIT))
-        self.lsrm_ili = 1.0/float(self.get_lsrm_sample_rate())
 
     @property
     def lsrm_cam_delay(self):
