@@ -22,7 +22,7 @@ microscope_config = configparser.ConfigParser()
 microscope_config.read(MICROSCOPE_CONFIG_FILE_NAME)
 
 def get_microscope_from_config():
-    if configparser.ConfigParser().has_section(MICROSCOPE_CONFIG_SECTION):
+    if microscope_config.has_section(MICROSCOPE_CONFIG_SECTION):
         return MicroscopeConfig[microscope_config.get(MICROSCOPE_CONFIG_SECTION, MICROSCOPE_CONFIG_OPTION)]
     else:
         return MicroscopeConfig.WILLAMETTE
