@@ -29,6 +29,7 @@ core = Core()
 
 
 BF_CHANNEL = "BF"
+GFP_CHANNEL = "GFP"
 _MULTIPAGE_TIFF = studio.data().get_preferred_save_mode().MULTIPAGE_TIFF
 #These are found in the MM summary metadata class.
 _C_AXIS = "channel"
