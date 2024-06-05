@@ -32,6 +32,7 @@ class HTLSHardwareController():
 
         for p in Port:
             self._dialog.port_combo_box.addItem(p.name)
+        self._dialog.port_combo_box.setCurrentText(Pump.port.name)
 
         validator = QtGui.QIntValidator()
         validator.setBottom(0)
