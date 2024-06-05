@@ -9,7 +9,7 @@ from LS_Pycro_App.utils import pycro, stitch, exceptions
 from LS_Pycro_App.utils.pycro import core
 
 
-CORR_TEMPLATE_PATH = "/LS_Pycro_App/utils/fish_template.png"
+CORR_TEMPLATE_PATH = "LS_Pycro_App/utils/fish_detection_images/fish_template.png"
 HOLE_AREA_UM = 4500
 FEATURE_AREA_UM = 65000
 SAME_FEATURE_MAX_D = 300
@@ -17,7 +17,7 @@ ECCENTRICITY_LIMIT = 0.95
 NUM_FEATURES = 2
 STD_FACTOR = 1.6
 DX_FACTOR = 0.2
-CROSS_CORRECTION = 1400
+CROSS_CORRECTION = 1600
 
 
 def wait_for_fish():
@@ -36,17 +36,14 @@ def wait_for_fish():
         
         
 def get_stitched_image(stitched_positions):
+        #Just to make sure bright field is being used.
+        pycro.set_channel(pycro.BF_CHANNEL)
         images = []
         for pos in stitched_positions:
             Stage.set_x_position(pos[0])
-            Stage.set_y_position(pos[1])
-            Stage.set_z_position(pos[2])
             Stage.wait_for_xy_stage()
-            Stage.wait_for_z_stage()
-            #Just to make sure bright field is being used.
-            pycro.set_channel(pycro.BF_CHANNEL)
             Camera.snap_image()
-            image = pycro.pop_next_image().get_raw_pixels()
+            image = pycro.pop_next_image().get_raw_pixels().reshape((core.get_image_height(), core.get_image_width()))
             images.append(image)
         return stitch.stitch_images(images, stitched_positions, x_stage_polarity=-1)
 
@@ -66,7 +63,7 @@ def get_stitched_positions(start_pos, end_pos, x_step_size):
     return positions
 
     
-def get_region_1_x_offset(start_pos, end_pos, x_step_size):
+def get_region_1_x_offset(start_pos, end_pos, x_step_size, fish_num):
     positions = get_stitched_positions(start_pos, end_pos, x_step_size)
     capillary_image = get_stitched_image(positions)
     return get_cross_cor_offset_um(capillary_image)
@@ -150,12 +147,13 @@ def get_cross_cor_offset_um(capillary_image: np.ndarray):
     zero_rms_stitched = image_1d - np.mean(image_1d)
     zero_rms_template = template_1d - np.mean(template_1d)
     cross_offset = np.argmax(scipy.signal.correlate(zero_rms_stitched, zero_rms_template, "valid"))
+    print(f"cross offset: {cross_offset}")
     #CROSS_CORRECTION is the position of region 1 relative to the template.
     #We subtract the offset from the image width because position of fish is relative to
     #where the fish entered from (the start position), which is currently from the right 
     #side of the image.
-    corrected_offset = capillary_image.shape[1] - (cross_offset + CROSS_CORRECTION)
+    corrected_offset = capillary_image.shape[1] - (cross_offset + CROSS_CORRECTION) - core.get_image_width()
+    print(f"corrected offset: {corrected_offset}")
+    print(f"corrected offset um: {corrected_offset*core.get_pixel_size_um()}")
     #returns offset as um offset for stage
     return corrected_offset*core.get_pixel_size_um()
-
-
