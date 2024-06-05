@@ -32,12 +32,12 @@ import threading
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
+from LS_Pycro_App.acquisition.acq_gui import CLSAcqGui, HTLSAcqGui
 from LS_Pycro_App.acquisition.sequences import (
-    AcquisitionSequence, TimeSampAcquisition, SampTimeAcquisition, PosTimeAcquisition, HTLSSequence)
+    TimeSampAcquisition, SampTimeAcquisition, PosTimeAcquisition, HTLSSequence)
 from LS_Pycro_App.models.acq_directory import AcqDirectory
-from LS_Pycro_App.hardware import Stage, Camera, Galvo, Plc
+from LS_Pycro_App.hardware import Stage, Camera, Galvo, Plc, Pump
 from LS_Pycro_App.models.acq_settings import AcqSettings, AcqOrder
-from LS_Pycro_App.views import AbortDialog, AcqDialog
 from LS_Pycro_App.models.acq_settings import HTLSSettings
 from LS_Pycro_App.utils import exceptions, user_config
 from LS_Pycro_App.utils.pycro import core, studio
@@ -54,29 +54,32 @@ class Acquisition(ABC, threading.Thread):
         AcquisitionSettings instance that contains all image acquisition settings. 
 
     """
-    def __init__(self, acq_settings: AcqSettings | HTLSSettings):
-        super().__init__()
-        self._logger = logging.getLogger(self.__class__.__name__)
-        #Reason for this deepcopy is so if settings are changed in the GUI while an acquisition is running,
-        #it won't change the settings in the middle of the acquisition
-        self._acq_settings = deepcopy(acq_settings)
-        self._adv_settings = self._acq_settings.adv_settings
-        self._acq_directory = AcqDirectory(self._acq_settings.directory)
-        self._abort_dialog = AbortDialog()
-        self._acq_dialog = AcqDialog()
-        self._abort_flag = exceptions.AbortFlag()
-        self._acq_dialog.abort_button.clicked.connect(self._abort_button_clicked)
-        self._abort_dialog.cancel_button.clicked.connect(self._cancel_button_clicked)
-        self._abort_dialog.abort_button.clicked.connect(self._abort_confirm_button_clicked)
+    @abstractmethod
+    def run(self):
+        """
+        This method runs an image acquisition with the parameters set in
+        acq_settings.
+
+        This method is called when Acquisition.start() is called and runs in a 
+        separate thread.
+        """
 
     @abstractmethod
-    def _get_acq_sequence(self) -> AcquisitionSequence:
+    def _abort_acquisition(self):
         """
-        This should return one of the classes that inherits from the AcquisitionSequence
-        class in sequences.py file. For CLS acquisitions, this is determined by the
-        acq_order attribute of AcqSettings, and for HTLS, it should be the HTLS sequence.
+        Method should be called when acquisition is aborted. If acquisition uses hardware, should reset
+        hardware devices to initial states. Should also display to the GUI that the acquisition
+        has been aborted.
         """
+    
+    def _init_mm(self):
+        core.stop_sequence_acquisition()
+        core.clear_circular_buffer()
+        core.set_shutter_open(False)
+        core.set_auto_shutter(True)
 
+
+class HardwareAcquisition(ABC):
     @abstractmethod
     def _init_hardware(self):
         """
@@ -90,91 +93,51 @@ class Acquisition(ABC, threading.Thread):
         This method should reset hardware to its pre-acquisition state.
         """
 
-    def run(self):
-        """
-        This method runs an image acquisition with the parameters set in
-        acq_settings.
 
-        This method is called when Acquisition.start() is called and runs in a 
-        separate thread.
-        """
+class CLSAcquisition(Acquisition, HardwareAcquisition):
+    def __init__(self, 
+                 acq_settings: AcqSettings, 
+                 acq_gui: CLSAcqGui, 
+                 acq_directory: AcqDirectory,
+                 abort_flag: exceptions.AbortFlag):
+        #Reason for this deepcopy is so if settings are changed in the GUI while an acquisition is running,
+        #it won't change the settings in the middle of the acquisition
+        threading.Thread.__init__(self)
+        self._logger = logging.getLogger(self.__class__.__name__)
+        self._acq_settings = deepcopy(acq_settings)
+        self._acq_gui = acq_gui
+        self._acq_directory = acq_directory
+        self._abort_flag = abort_flag
+        self._adv_settings = self._acq_settings.adv_settings
+
+    def run(self):
         try:
-            self._status_update("Initializing Acquisition")
+            self._acq_gui.status_update("Initializing Acquisition")
             self._init_hardware()
             self._abort_flag.abort = False
             sequence = self._get_acq_sequence()
             sequence.run()
         except exceptions.AbortAcquisitionException:
-            self._abort_acquisition(self._abort_flag.abort)
+            self._abort_acquisition()
         except:
             self._logger.exception("exception raised during acquisition")
-            self._abort_acquisition(self._abort_flag.abort)
+            self._abort_acquisition()
         else:
             self._write_acquisition_notes()
             self._reset_hardware()
             studio.app().refresh_gui()
-            self._status_update("Your acquisition was successful!")
-        
-    def _init_mm(self):
-        core.stop_sequence_acquisition()
-        core.clear_circular_buffer()
-        core.set_shutter_open(False)
-        core.set_auto_shutter(True)
-    
-    def _write_acquisition_notes(self):
-        """
-        Writes current config as acquisition notes at acq_directory.root.
-        """
-        user_config.write_config_file(f"{self._acq_directory.root}/notes.txt")
+            self._acq_gui.status_update("Your acquisition was successful!")
 
-    def _status_update(self, message:str):
-        """
-        Displays message on acquisition label and writes it to logs
-        """
-        self._acq_dialog.acq_label.setText(message)
-        self._logger.info(message)
-
-    #abort/exception implementation
-    def _abort_button_clicked(self):
-        self._abort_dialog.show()
-        self._abort_dialog.activateWindow()
-
-    def _abort_confirm_button_clicked(self):
-        """
-        If confirmed, acquisition will be aborted.
-        """
-        self._abort_dialog.close()
-        self._abort_flag.abort = True
-        self._abort_acquisition(self._abort_flag.abort)
-
-    def _cancel_button_clicked(self):
-        self._abort_dialog.close()
-
-    def _abort_acquisition(self, acq_aborted: bool):
-        """
-        called when acquisition is aborted or failed. Stops sequence acquisition if one is running,
-        clears circular buffer, sets the default camera properties, and resets the joystick. 
-        """
-        if acq_aborted:
-            first_message = "Aborting Acquisition"
-            second_message = "Aborted Acquisition"
-        else:
-            first_message = "Acquisition Failed. Stopping."
-            second_message = "Acquisition Failed. Check Logs."
-
-        self._status_update(first_message)
+    def _abort_acquisition(self):
+        self._acq_gui.status_update("Aborting Acquisition")
         self._reset_hardware()
-        self._status_update(second_message)
+        self._acq_gui.status_update("Aborted Acquisition" if self._abort_flag.abort else "Acquisition Failed. Check Logs.")
 
-
-class CLSAcquisition(Acquisition):
     def _get_acq_sequence(self):
-        if self._adv_settings.acq_order == AcqOrder.TIME_SAMP:
-            return TimeSampAcquisition(self._acq_settings, self._acq_dialog, self._abort_flag, self._acq_directory)
-        elif self._adv_settings.acq_order == AcqOrder.SAMP_TIME:
-            return SampTimeAcquisition(self._acq_settings, self._acq_dialog, self._abort_flag, self._acq_directory)
-        elif self._adv_settings.acq_order == AcqOrder.POS_TIME:
-            return PosTimeAcquisition(self._acq_settings, self._acq_dialog, self._abort_flag, self._acq_directory)
+        sequences = {AcqOrder.TIME_SAMP: TimeSampAcquisition,
+                     AcqOrder.SAMP_TIME: SampTimeAcquisition,
+                     AcqOrder.POS_TIME: PosTimeAcquisition}
+        return sequences[self._adv_settings.acq_order](self._acq_settings, self._acq_gui, self._acq_directory, self._abort_flag)
         
     def _init_hardware(self):
         self._init_galvo()
@@ -196,11 +159,52 @@ class CLSAcquisition(Acquisition):
         core.clear_circular_buffer()
         Stage.reset_joystick()
 
+    def _write_acquisition_notes(self):
+        """
+        Writes current config as acquisition notes at acq_directory.root.
+        """
+        user_config.write_config_file(f"{self._acq_directory.root}/notes.txt")
 
-class HTLSAcquisition(Acquisition):
-    def _get_acq_sequence(self):
-        return HTLSSequence(self._acq_settings, self._acq_dialog, self._abort_flag, self._acq_directory)
+    
+class HTLSAcquisition(Acquisition, HardwareAcquisition):
+    def __init__(self, 
+                 htls_settings: HTLSSettings, 
+                 acq_gui: HTLSAcqGui, 
+                 acq_directory: AcqDirectory,
+                 abort_flag: exceptions.AbortFlag):
+        threading.Thread.__init__(self)
+        #Reason for this deepcopy is so if settings are changed in the GUI while an acquisition is running,
+        #it won't change the settings in the middle of the acquisition
+        self._logger = logging.getLogger(self.__class__.__name__)
+        self._htls_settings = htls_settings
+        self._acq_gui = acq_gui
+        self._acq_directory = acq_directory
+        self._abort_flag = abort_flag
+        self._acq_settings = self._htls_settings.acq_settings
+        self._adv_settings = self._acq_settings.adv_settings
         
+    def run(self):
+        try:
+            self._acq_gui.status_update("Initializing Acquisition")
+            self._init_hardware()
+            self._acq_gui._abort_flag = False
+            sequence = HTLSSequence(self._htls_settings, self._acq_gui, self._acq_directory, self._abort_flag)
+            sequence.run()
+        except exceptions.AbortAcquisitionException:
+            self._abort_acquisition()
+        except:
+            self._logger.exception("exception raised during acquisition")
+            self._abort_acquisition()
+        else:
+            self._reset_hardware()
+            studio.app().refresh_gui()
+            self._acq_gui.status_update("Your acquisition was successful!")
+
+    def _abort_acquisition(self):
+        self._acq_gui.status_update("Aborting Acquisition")
+        self._reset_hardware()
+        self._acq_gui.status_update("Aborted Acquisition" if self._abort_flag.abort else "Acquisition Failed. Check Logs.")
+
     def _init_hardware(self):
         self._init_galvo()
         self._init_plc()
@@ -210,9 +214,10 @@ class HTLSAcquisition(Acquisition):
             Galvo.set_dslm_mode()
 
     def _init_plc(self):
-        Plc.set_for_z_stack(self._acq_settings.region_settings.z_stack_step_size)
+        Plc.set_for_z_stack(self._htls_settings.fish_settings.region_list[0].z_stack_step_size, self._adv_settings.z_stack_stage_speed)
 
     def _reset_hardware(self):
+        Pump.terminate()
         Plc.set_continuous_pulses(30)
         core.stop_sequence_acquisition()
         Camera.set_exposure(Camera.DEFAULT_EXPOSURE)

@@ -86,12 +86,12 @@ class ImagingSequence(ABC):
         """
         pass
     
-    def __init__(self, region: Region, acq_settings: AcqSettings, abort_flag: exceptions.AbortFlag, acq_directory: AcqDirectory):
+    def __init__(self, region: Region, acq_settings: AcqSettings, acq_directory: AcqDirectory, abort_flag: exceptions.AbortFlag):
         self._region = region
         self._acq_settings = acq_settings
         self._adv_settings = acq_settings.adv_settings
-        self._abort_flag = abort_flag
         self._acq_directory = acq_directory
+        self._abort_flag = abort_flag
 
     def close_datastore(self):
         # supress attribute error in case datastore doesn't exist
