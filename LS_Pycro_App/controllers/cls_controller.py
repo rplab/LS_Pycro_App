@@ -6,10 +6,12 @@ from pathlib import Path
 
 from PyQt5 import QtGui, QtWidgets
 
+from LS_Pycro_App.acquisition.acq_gui import CLSAcqGui
 from LS_Pycro_App.acquisition.main import CLSAcquisition
+from LS_Pycro_App.models.acq_directory import AcqDirectory
 from LS_Pycro_App.models.acq_settings import Region, Fish, AcqSettings, AcqOrder
 from LS_Pycro_App.controllers.select_controller import microscope, MicroscopeConfig
-from LS_Pycro_App.views import AcqRegionsDialog, AcqOrderDialog, AcqSettingsDialog, AdvSettingsDialog, BrowseDialog
+from LS_Pycro_App.views import AcqRegionsDialog, AcqOrderDialog, AcqSettingsDialog, AdvSettingsDialog, BrowseDialog, AcqDialog, AbortDialog
 from LS_Pycro_App.hardware import Stage, Camera
 from LS_Pycro_App.hardware.camera import Hamamatsu
 from LS_Pycro_App.utils import constants, exceptions
@@ -52,11 +54,11 @@ class CLSController(object):
         self._logger = logging.getLogger(self.__class__.__name__)
         self.regions_dialog = AcqRegionsDialog()
         self._acq_settings_dialog = AcqSettingsDialog()
+        self._acq_dialog = AcqDialog()
         self._adv_settings_dialog = AdvSettingsDialog()
         self._acq_order_dialog = AcqOrderDialog()
         self._acq_settings = AcqSettings()
         self._adv_settings = self._acq_settings.adv_settings
-        self._acquisition = CLSAcquisition(self._acq_settings)
 
         self._fish_num = 0
         self._region_num = 0
@@ -883,16 +885,25 @@ class CLSController(object):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         # Update before starting acquisition to update all values beforehand.
         self._update_dialogs()
-        if not self._acquisition.is_alive():
-            self._acquisition = CLSAcquisition(self._acq_settings)
-        self._acquisition._acq_dialog.show()
-        self._acquisition._acq_dialog.activateWindow()
+        try:
+            if self._acquisition.is_alive():
+                return
+        except AttributeError:
+            pass
+        finally:
+            abort_flag = exceptions.AbortFlag()
+            self._acquisition = CLSAcquisition(self._acq_settings, 
+                                               CLSAcqGui(self._acq_dialog, AbortDialog(), abort_flag), 
+                                               AcqDirectory(self._acq_settings.directory), 
+                                               exceptions.AbortFlag())
+        self._acq_dialog.show()
+        self._acq_dialog.activateWindow()
         self._acquisition.start()
 
     def _show_acquisition_dialog_button_clicked(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._acquisition._acq_dialog.show()
-        self._acquisition._acq_dialog.activateWindow()
+        self._acq_dialog.show()
+        self._acq_dialog.activateWindow()
 
     def _z_stack_spectral_check_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))

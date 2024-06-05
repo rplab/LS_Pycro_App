@@ -6,12 +6,14 @@ from pathlib import Path
 
 from PyQt5 import QtGui, QtWidgets
 
-from LS_Pycro_App.models.acq_settings import Region
-from LS_Pycro_App.views import BrowseDialog, HTLSAcqRegionsDialog, HTLSAcqSettingsDialog, HTLSAdvSettingsDialog
+from LS_Pycro_App.acquisition.acq_gui import HTLSAcqGui
 from LS_Pycro_App.acquisition.main import HTLSAcquisition
 from LS_Pycro_App.models.acq_settings import HTLSSettings
 from LS_Pycro_App.hardware import Stage, Camera
 from LS_Pycro_App.hardware.camera import Hamamatsu
+from LS_Pycro_App.models.acq_settings import Region
+from LS_Pycro_App.models.acq_directory import AcqDirectory
+from LS_Pycro_App.views import BrowseDialog, HTLSAcqRegionsDialog, HTLSAcqSettingsDialog, HTLSAdvSettingsDialog, HTLSAcqDialog, AbortDialog
 from LS_Pycro_App.utils import exceptions
 
 
@@ -51,12 +53,13 @@ class HTLSController(object):
     def __init__(self):
         self._logger = logging.getLogger(self.__class__.__name__)
         self.regions_dialog = HTLSAcqRegionsDialog()
+        self._acq_dialog = HTLSAcqDialog()
         self._acq_settings_dialog = HTLSAcqSettingsDialog()
         self._adv_settings_dialog = HTLSAdvSettingsDialog()
         self._htls_settings = HTLSSettings()
         self._acq_settings = self._htls_settings.acq_settings
         self._adv_settings = self._acq_settings.adv_settings
-        self._acquisition = HTLSAcquisition(self._acq_settings)
+        self._acquisition = HTLSAcquisition(self._htls_settings)
 
         self._fish = self._htls_settings.fish_settings
         self._region_num = 0
@@ -320,6 +323,7 @@ class HTLSController(object):
         self.regions_dialog.prev_region_button.setEnabled(self._region_num > 0)
 
     def _fish_notes_update(self):
+        self.regions_dialog.num_fish_line_edit.setText(str(self._htls_settings.num_fish))
         self.regions_dialog.fish_type_line_edit.setText(str(self._fish.fish_type))
         self.regions_dialog.age_line_edit.setText(str(self._fish.age))
         self.regions_dialog.treatment_line_edit.setText(str(self._fish.treatment))
@@ -769,16 +773,25 @@ class HTLSController(object):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         # Update before starting acquisition to update all values beforehand.
         self._update_dialogs()
-        if not self._acquisition.is_alive():
-            self._acquisition = HTLSAcquisition(self._acq_settings)
-        self._acquisition._acq_dialog.show()
-        self._acquisition._acq_dialog.activateWindow()
+        try:
+            if self._acquisition.is_alive():
+                return
+        except AttributeError:
+            pass
+        finally:
+            abort_flag = exceptions.AbortFlag()
+            self._acquisition = HTLSAcquisition(self._htls_settings, 
+                                                HTLSAcqGui(self._acq_dialog, AbortDialog(), abort_flag), 
+                                                AcqDirectory(self._acq_settings.directory), 
+                                                abort_flag)
+        self._acq_dialog.show()
+        self._acq_dialog.activateWindow()
         self._acquisition.start()
 
     def _show_acquisition_dialog_button_clicked(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._acquisition._acq_dialog.show()
-        self._acquisition._acq_dialog.activateWindow()
+        self._acq_dialog.show()
+        self._acq_dialog.activateWindow()
 
     def _z_stack_spectral_check_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
