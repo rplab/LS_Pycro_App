@@ -11,12 +11,12 @@ class Port(Enum):
     E = "E"
 
 
-_COM_PORT = "COM4"
+_COM_PORT = "COM5"
 _START = "/1"
 _END = "R\r"
 DEFAULT_SPEED = 2
-DETECTION_VELOCITY = 4
-FILL_VELOCITY = 100
+DETECTION_VELOCITY = 8
+FILL_VELOCITY = 200
 MIN_POSITION = 300
 MAX_POSITION = 2900
 POSITION_WAIT_S = 0.1
@@ -24,15 +24,14 @@ FILL_PORT = Port.E
 ACQ_PORT = Port.O
 
 
-com = serial.Serial(_COM_PORT, timeout=0.05)
-port = FILL_PORT
-speed = DEFAULT_SPEED
-velocity = DETECTION_VELOCITY
-
-
 def init():
-    set_velocity(velocity)
+    global port, speed, velocity, com
+    port = FILL_PORT
+    speed = DEFAULT_SPEED
+    velocity = DETECTION_VELOCITY
+    com = serial.Serial(_COM_PORT, timeout=0.05)
     set_speed(speed)
+    set_velocity(velocity)
     set_port(port)
 
 
@@ -124,3 +123,7 @@ def close_com():
 def _write_command(command: str):
     com.write(f"{_START}{command}{_END}".encode())
     time.sleep(0.2)
+
+
+def z_init():
+    _write_command("Z1")

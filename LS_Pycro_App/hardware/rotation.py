@@ -6,11 +6,12 @@ _START = "/1"
 _END = "\n"
 _DEFAULT_SPEED = 50
 
-com = serial.Serial(_COM_PORT, timeout=0.3)
-
 
 def init():
+    global com
+    com = serial.Serial(_COM_PORT, timeout=0.3)
     set_speed(_DEFAULT_SPEED)
+    pass
 
 
 def get_position():

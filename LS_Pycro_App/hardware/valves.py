@@ -3,25 +3,24 @@ import serial
 _COM_PORT = "COM16"
 _END = "\n"
 
-com = serial.Serial(_COM_PORT, timeout=0.3)
-are_open = True
-
 
 def init():
-    global are_open
+    global com, are_open
+    com = serial.Serial(_COM_PORT, timeout=0.3)
     are_open = True
     open()
-
-
-def open():
-    global are_open
-    are_open = True
-    write_command("o")
+    pass
 
 
 def close():
     global are_open
     are_open = False
+    write_command("o")
+
+
+def open():
+    global are_open
+    are_open = True
     write_command("c")
 
 
