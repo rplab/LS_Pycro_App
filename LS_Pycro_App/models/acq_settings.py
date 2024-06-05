@@ -115,7 +115,6 @@ class Region():
         self._video_num_frames: int = Region._video_num_frames
         self._video_exposure: float = Region._video_exposure
         self._video_channel_list: list[str] = deepcopy(Region._video_channel_list)
-        self._size_mb: float = 0
 
     #This setter pattern is used to store default values for created Region objects. 
     @property
@@ -261,8 +260,7 @@ class Region():
     @property
     def size_mb(self):
         image_size = core.get_image_width()*core.get_image_height()*core.get_bytes_per_pixel()*constants.B_TO_MB
-        self._size_mb = image_size*self.num_images
-        return self._size_mb
+        return image_size*self.num_images
 
     @property
     def num_images(self):
@@ -351,7 +349,6 @@ class Fish():
         self._age: str = Fish._age
         self._treatment: str = Fish._treatment
         self._add_notes: str = Fish._add_notes
-        self._size_mb: float = 0
 
     @property
     def num_regions(self):
@@ -414,8 +411,7 @@ class Fish():
     @property
     def size_mb(self):
         image_size = core.get_image_width()*core.get_image_height()*core.get_bytes_per_pixel()*constants.B_TO_MB
-        self._size_mb = image_size*self.num_images
-        return self._size_mb
+        return image_size*self.num_images
 
     #region_list methods
     def append_blank_region(self) -> Region:
@@ -744,8 +740,7 @@ class AcqSettings():
     
     @property
     def size_mb(self):
-        self._size_mb = self.total_num_images*self.image_size_mb
-        return self._size_mb
+        return self.total_num_images*self.image_size_mb
 
     #fish_list methods
     def append_blank_fish(self) -> Fish:
@@ -914,7 +909,7 @@ class HTLSSettings():
         self.capillary_start_pos: list[int] = [0, 0, 0]
         self.capillary_end_pos: list[int] = [0, 0, 0]
         self.num_fish: int = 0
-        self.num_regions: int = 3
+        self.num_regions: int = 0
         self.init_from_config()
 
     #config api methods
