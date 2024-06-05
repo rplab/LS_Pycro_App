@@ -2,11 +2,10 @@ import copy
 import os
 import time
 import logging
-from abc import ABC, abstractmethod
 
 import numpy as np
 
-from LS_Pycro_App.views import AcqDialog
+from LS_Pycro_App.acquisition.acq_gui import CLSAcqGui, HTLSAcqGui
 from LS_Pycro_App.models.acq_settings import AcqSettings, HTLSSettings, Fish, Region
 from LS_Pycro_App.models.acq_directory import AcqDirectory
 from LS_Pycro_App.acquisition.imaging import ImagingSequence, Snap, Video, SpectralVideo, ZStack, SpectralZStack
@@ -14,12 +13,12 @@ from LS_Pycro_App.hardware import Stage, Camera, Pump, Valves
 from LS_Pycro_App.utils import constants, dir_functions, exceptions, fish_detection, pycro, user_config
 from LS_Pycro_App.utils.pycro import BF_CHANNEL, core
 
-class AcquisitionSequence(ABC):
+
+class SequenceHelpers():
     """
-    Abstract class that controls the order of region, fish, and time points during image acquisition.
-    Moves stage to region for imaging and then calls run() in imaging sequences to acquire images.
-    Also sets region, fish, and time point in acq_directory so that save directory is initialized correctly. 
-    Child classes should move to correct region and then call _run_imaging_sequences() to acquire images.
+    Class that holds many helpful functions for use in acquisition sequences. Inlcudes functions that
+    update dialogs, check and wait for timepoints, moves stage regions, updates current save directory,
+    and acquires end videos.
     
     ### Constructor Parameters:
 
@@ -49,68 +48,21 @@ class AcquisitionSequence(ABC):
         Ie, if there is one fish with two regions AcqSettings.fish_list and timepoints are enabled, 
         a full time series will be performed for the first region, and then once concluded, a full 
         time series of the second region will be acquired.
-
-
-    Abstract Methods:
-
-    #### run()
-        starts acquisition
     """
-    # delay is pretty arbitrary. At the very least should be less than a second
-    # to avoid inconsistent intervals between timepoints.
-    TIME_DIALOG_UPDATE_DELAY_S = .01
-
-    @abstractmethod
-    def run(self):
-        """
-        starts acquisition
-        """
-        pass
-
-    def __init__(self, acq_settings: AcqSettings | HTLSSettings, acq_dialog: AcqDialog,
-                 abort_flag: exceptions.AbortFlag, acq_directory: AcqDirectory):
-        self._logger = logging.getLogger(self._get_name())
-        #deepcopy so that if GUI is changed during acquisition is in progress, won't change running acquisition
+    def __init__(self, acq_settings: AcqSettings | HTLSSettings, acq_gui: CLSAcqGui | HTLSAcqGui,
+                 acq_directory: AcqDirectory, abort_flag: exceptions.AbortFlag, logger: logging.Logger):
         self._acq_settings = acq_settings
         self._adv_settings = self._acq_settings.adv_settings
-        self._acq_dialog = acq_dialog
-        self._abort_flag = abort_flag
+        self._acq_gui = acq_gui
         self._acq_directory = acq_directory
+        self._abort_flag = abort_flag
+        self._logger = logger
         self.backup_used = False
 
     def _abort_check(self):
         #abort_check is called throughout acquisitions to check if the user has aborted the acquisition.
         if self._abort_flag.abort:
             raise exceptions.AbortAcquisitionException
-        
-    def _get_name(self) -> str:
-        return self.__class__.__name__
-
-    # time point helpers
-    def _get_time(self) -> float:
-        return time.time()
-    
-    def _get_time_since_start(self, start_time) -> float:
-        return self._get_time() - start_time
-    
-    def _get_time_remaining(self, start_time) -> float:
-        return self._acq_settings.time_points_interval_sec - self._get_time_since_start(start_time)
-    
-    def _get_minutes_left(self, start_time) -> tuple[int, int]:
-        total_seconds_left = int(np.ceil(self._get_time_remaining(start_time)))
-        return divmod(total_seconds_left, constants.S_IN_MIN)
-    
-    def _is_time_point_left(self, time_point) -> bool:
-        if self._acq_settings.time_points_enabled:
-            return self._acq_settings.num_time_points - time_point > 1
-        else:
-            return False
-    
-    def _wait_for_next_time_point(self, start_time):
-        while self._get_time_remaining(start_time) > 0:
-            self._abort_check()
-            self._update_time_left(start_time)
-            time.sleep(self.TIME_DIALOG_UPDATE_DELAY_S)
 
     #run helpers
     def _acquire_regions(self, fish: Fish):
@@ -144,7 +96,7 @@ class AcquisitionSequence(ABC):
                 self._acquire_imaging_sequence(ZStack, region)
 
     def _acquire_imaging_sequence(self, Sequence: ImagingSequence, region: Region):
-        sequence = Sequence(region, self._acq_settings, self._abort_flag, self._acq_directory)
+        sequence = Sequence(region, self._acq_settings, self._acq_directory, self._abort_flag)
         for update_message in sequence.run():
             self._update_acq_status(update_message)
 
@@ -202,27 +154,16 @@ class AcquisitionSequence(ABC):
 
     # acq_dialog methods
     def _update_region_label(self, region_num):
-        self._acq_dialog.region_label.setText(f"Region {region_num + 1}")
+        self._acq_gui.region_update(region_num + 1)
 
     def _update_fish_label(self, fish_num: int):
-        self._acq_dialog.fish_label.setText(f"Fish {fish_num + 1}")
-
-    def _update_time_point_label(self, time_point: int):
-        self._acq_dialog.time_point_label.setText(f"Time Point {time_point + 1}")
-
-    def _update_time_left(self, start_time):
-        minutes_left, seconds_left = self._get_minutes_left(start_time)
-        update_message = "next time point:"
-        if minutes_left:
-            update_message = f"{update_message} {minutes_left} minutes"
-        update_message = f"{update_message} {seconds_left} seconds"
-        self._acq_dialog.acq_label.setText(update_message)
+        self._acq_gui.fish_update(fish_num + 1)
 
     def _update_acq_status(self, message):
         """
         Displays message on acquisition label and writes it to logs
         """
-        self._acq_dialog.acq_label.setText(message)
+        self._acq_gui.status_update(message)
         self._logger.info(message)
 
     def _update_region_num(self, region_num):
@@ -235,13 +176,66 @@ class AcquisitionSequence(ABC):
         self._update_fish_label(fish_num)
         self._update_acq_status(f"Acquiring fish {fish_num + 1}")
 
+
+class TimePointHelpers():
+    # delay is pretty arbitrary. At the very least should be less than a second
+    # to avoid inconsistent intervals between timepoints.
+    TIME_DIALOG_UPDATE_DELAY_S = .01
+
+    def __init__(self, acq_settings: AcqSettings | HTLSSettings, acq_gui: CLSAcqGui | HTLSAcqGui,
+                 acq_directory: AcqDirectory, sequence_helpers: SequenceHelpers, logger: logging.Logger):
+        self._acq_settings = acq_settings
+        self._acq_gui = acq_gui
+        self._acq_directory = acq_directory
+        self._sequence_helpers = sequence_helpers
+        self._logger = logger
+
+    # time point helpers
+    def _get_time(self) -> float:
+        return time.time()
+    
+    def _get_time_since_start(self, start_time) -> float:
+        return self._get_time() - start_time
+    
+    def _get_time_remaining(self, start_time) -> float:
+        return self._acq_settings.time_points_interval_sec - self._get_time_since_start(start_time)
+    
+    def _get_minutes_left(self, start_time) -> tuple[int, int]:
+        total_seconds_left = int(np.ceil(self._get_time_remaining(start_time)))
+        return divmod(total_seconds_left, constants.S_IN_MIN)
+    
+    def _is_time_point_left(self, time_point) -> bool:
+        if self._acq_settings.time_points_enabled:
+            return self._acq_settings.num_time_points - time_point > 1
+        else:
+            return False
+    
+    def _wait_for_next_time_point(self, start_time):
+        while self._get_time_remaining(start_time) > 0:
+            self._sequence_helpers._abort_check()
+            self._update_time_left(start_time)
+            time.sleep(self.TIME_DIALOG_UPDATE_DELAY_S)
+
+    def _update_time_point_label(self, time_point: int):
+        self._acq_gui.timepoint_update(time_point + 1)
+
+    def _update_time_left(self, start_time):
+        minutes_left, seconds_left = self._get_minutes_left(start_time)
+        update_message = "next time point:"
+        if minutes_left:
+            update_message = f"{update_message} {minutes_left} minutes"
+        update_message = f"{update_message} {seconds_left} seconds"
+        #use status_update instead of update_acq_status because we don't want this
+        #to fill up the logs
+        self._acq_gui.status_update(update_message)
+
     def _update_time_point_num(self, time_point_num):
         self._acq_directory.set_time_point(time_point_num)
         self._update_time_point_label(time_point_num)
-        self._update_acq_status(f"Acquiring timepoint {time_point_num + 1}")
+        self._sequence_helpers._update_acq_status(f"Acquiring timepoint {time_point_num + 1}")
 
 
-class TimeSampAcquisition(AcquisitionSequence):
+class TimeSampAcquisition():
     """
     TimeSampAcquisition is the default acquisition order. It takes does a full acquisition of all fish
     for each time point.
@@ -251,36 +245,48 @@ class TimeSampAcquisition(AcquisitionSequence):
     #### run()
         runs acquisition
     """
+    def __init__(self, acq_settings: AcqSettings, acq_gui: CLSAcqGui,
+                 acq_directory: AcqDirectory, abort_flag: exceptions.AbortFlag):
+        self._logger = logging.getLogger(self.__class__.__name__)
+        #deepcopy so that if GUI is changed during acquisition is in progress, won't change running acquisition
+        self._acq_settings = acq_settings
+        self._adv_settings = self._acq_settings.adv_settings
+        self._acq_gui = acq_gui
+        self._acq_directory = acq_directory
+        self._abort_flag = abort_flag
+        self._sequence_helpers = SequenceHelpers(self._acq_settings, self._acq_gui, self._acq_directory, self._abort_flag, self._logger)
+        self._time_point_helpers = TimePointHelpers(self._acq_settings, self._acq_gui, self._acq_directory, self._sequence_helpers, self._logger)
+
     def run(self):
-        start_region = self._get_start_region(0)[0]
+        start_region = self._sequence_helpers._get_start_region(0)[0]
         if not start_region:
             raise exceptions.AbortAcquisitionException("No region in list with imaging enabled")
         self._acquire_time_points(start_region)
 
     def _acquire_time_points(self, start_region):
-        self._move_to_region(start_region)
+        self._sequence_helpers._move_to_region(start_region)
         for time_point in range(self._acq_settings.num_time_points):
-            start_time = self._get_time()
-            self._update_time_point_num(time_point)
+            start_time = self._time_point_helpers._get_time()
+            self._time_point_helpers._update_time_point_num(time_point)
             self._acquire_fish()
-            if self._is_time_point_left(time_point):
-                self._move_to_region(start_region)
-                self._wait_for_next_time_point(start_time)
+            if self._time_point_helpers._is_time_point_left(time_point):
+                self._sequence_helpers._move_to_region(start_region)
+                self._time_point_helpers._wait_for_next_time_point(start_time)
             else:
                 break
-        self._acquire_end_videos()
-        self._move_to_region(start_region)
+        self._sequence_helpers._acquire_end_videos()
+        self._sequence_helpers._move_to_region(start_region)
 
     def _acquire_fish(self):
         for fish_num, fish in enumerate(self._acq_settings.fish_list):
-            self._abort_check()
+            self._sequence_helpers._abort_check()
             if fish.imaging_enabled:
-                self._update_directory(fish.size_mb)
-                self._update_fish_num(fish_num)
-                self._acquire_regions(fish)
+                self._sequence_helpers._update_directory(fish.size_mb)
+                self._sequence_helpers._update_fish_num(fish_num)
+                self._sequence_helpers._acquire_regions(fish)
 
 
-class SampTimeAcquisition(AcquisitionSequence):
+class SampTimeAcquisition():
     """
     SampTimeAcquisition performs a full time series for each fish. Ie, if there are two fish in
     AcqSettings.fish_list and timepoints are enabled, a full time series will be performed for the
@@ -291,39 +297,51 @@ class SampTimeAcquisition(AcquisitionSequence):
     #### run()
         runs acquisition
     """
+    def __init__(self, acq_settings: AcqSettings, acq_gui: CLSAcqGui,
+                 acq_directory: AcqDirectory, abort_flag: exceptions.AbortFlag):
+        self._logger = logging.getLogger(self.__class__.__name__)
+        #deepcopy so that if GUI is changed during acquisition is in progress, won't change running acquisition
+        self._acq_settings = acq_settings
+        self._adv_settings = self._acq_settings.adv_settings
+        self._acq_gui = acq_gui
+        self._acq_directory = acq_directory
+        self._abort_flag = abort_flag
+        self._sequence_helpers = SequenceHelpers(self._acq_settings, self._acq_gui, self._acq_directory, self._abort_flag, self._logger)
+        self._time_point_helpers = TimePointHelpers(self._acq_settings, self._acq_gui, self._acq_directory, self._sequence_helpers, self._logger)
+
     def run(self):
-        if not self._get_start_region(0)[0]:
+        if not self._sequence_helpers._get_start_region(0)[0]:
             raise exceptions.AbortAcquisitionException("No valid region for imaging")
         self._acquire_fish()
 
     def _acquire_fish(self):
         fish_num = 0
         while True:
-            self._abort_check()
-            start_region, fish_num = self._get_start_region(fish_num)
+            self._sequence_helpers._abort_check()
+            start_region, fish_num = self._sequence_helpers._get_start_region(fish_num)
             if not start_region:
                 break
-            fish = self._acq_settings.fish_list[fish_num]
-            self._update_fish_num(fish_num)
-            self._move_to_region(start_region)
+            fish = self._sequence_helpers._acq_settings.fish_list[fish_num]
+            self._sequence_helpers._update_fish_num(fish_num)
+            self._sequence_helpers._move_to_region(start_region)
             self._acquire_time_points(fish, start_region)
-            self._acquire_end_videos([fish_num])
+            self._sequence_helpers._acquire_end_videos([fish_num])
             fish_num += 1
 
     def _acquire_time_points(self, fish: Fish, start_region: Region):
         for time_point in range(self._acq_settings.num_time_points):
-            self._update_directory(fish.size_mb)
-            start_time = self._get_time()
-            self._update_time_point_num(time_point)
-            self._acquire_regions(fish)
-            if self._is_time_point_left(time_point):
-                self._move_to_region(start_region)
-                self._wait_for_next_time_point(start_time)
+            self._sequence_helpers._update_directory(fish.size_mb)
+            start_time = self._time_point_helpers._get_time()
+            self._time_point_helpers._update_time_point_num(time_point)
+            self._sequence_helpers._acquire_regions(fish)
+            if self._time_point_helpers._is_time_point_left(time_point):
+                self._sequence_helpers._move_to_region(start_region)
+                self._time_point_helpers._wait_for_next_time_point(start_time)
             else:
                 break
 
 
-class PosTimeAcquisition(AcquisitionSequence):
+class PosTimeAcquisition():
     """
     PosTimeAcquisition performs a full time series for each region. Ie, if there is one fish with two 
     regions AcqSettings.fish_list and timepoints are enabled, a full time series will be performed for 
@@ -334,135 +352,142 @@ class PosTimeAcquisition(AcquisitionSequence):
     #### run()
         runs acquisition
     """
+    def __init__(self, acq_settings: AcqSettings, acq_gui: CLSAcqGui,
+                 acq_directory: AcqDirectory, abort_flag: exceptions.AbortFlag):
+        self._logger = logging.getLogger(self.__class__.__name__)
+        #deepcopy so that if GUI is changed during acquisition is in progress, won't change running acquisition
+        self._acq_settings = acq_settings
+        self._adv_settings = self._acq_settings.adv_settings
+        self._acq_gui = acq_gui
+        self._acq_directory = acq_directory
+        self._abort_flag = abort_flag
+        self._sequence_helpers = SequenceHelpers(self._acq_settings, self._acq_gui, self._acq_directory, self._abort_flag, self._logger)
+        self._time_point_helpers = TimePointHelpers(self._acq_settings, self._acq_gui, self._acq_directory, self._sequence_helpers, self._logger)
+
     def run(self):
-        if not self._get_start_region(0)[0]:
+        if not self._sequence_helpers._get_start_region(0)[0]:
             raise exceptions.AbortAcquisitionException("No valid region for imaging")
         self._acquire_fish()
 
     def _acquire_fish(self):
-        for fish in self._acq_settings.fish_list:
+        for fish in self._sequence_helpers._acq_settings.fish_list:
             self._acquire_regions(fish)
 
     def _acquire_regions(self, fish: Fish):
         for region_num, region in enumerate(fish.region_list):
-            self._abort_check()
+            self._sequence_helpers._abort_check()
             if region.imaging_enabled:
-                self._update_fish_num(self._acq_settings.fish_list.index(fish))
-                self._update_region_num(region_num)
-                self._move_to_region(region)
+                self._sequence_helpers._update_fish_num(self._acq_settings.fish_list.index(fish))
+                self._sequence_helpers._update_region_num(region_num)
+                self._sequence_helpers._move_to_region(region)
                 self._acquire_time_points(region)
-                self._acquire_end_videos([self._acq_settings.fish_list.index(fish)], region_num)
+                self._sequence_helpers._acquire_end_videos([self._acq_settings.fish_list.index(fish)], region_num)
 
     def _acquire_time_points(self, region: Region):
         for time_point in range(self._acq_settings.num_time_points):
-            self._update_directory(region.size_mb)
-            start_time = self._get_time()
-            self._update_time_point_num(time_point)
-            self._run_imaging_sequences(region)
-            if self._is_time_point_left(time_point):
+            self._sequence_helpers._update_directory(region.size_mb)
+            start_time = self._time_point_helpers._get_time()
+            self._time_point_helpers._update_time_point_num(time_point)
+            self._sequence_helpers._run_imaging_sequences(region)
+            if self._time_point_helpers._is_time_point_left(time_point):
                 Stage.set_z_position(region.z_pos)
-                self._wait_for_next_time_point(start_time)
+                self._time_point_helpers._wait_for_next_time_point(start_time)
             else:
                 break
 
 
-class HTLSSequence(AcquisitionSequence):
+class HTLSSequence():
     _DETECT_TIMEOUT_S = 300
-    _STD_THRESHOLD_FACTOR = 0.6
+    _STITCH_STEP_SIZE_UM = 200
+    _STITCH_IMAGE_LENGTH_UM = 10000
+    _BF_THRESHOLD_FACTOR = 0.6
+    _NOISE_THRESHOLD_FACTOR = 2
     _REGION_OVERLAP = 0.05
-    _MAX_Z_STACK = 1200
+    _MAX_Z_STACK = 100
+
+    def __init__(self, htls_settings: HTLSSettings, acq_gui: HTLSAcqGui,
+                 acq_directory: AcqDirectory, abort_flag: exceptions.AbortFlag):
+        self._logger = logging.getLogger(self.__class__.__name__)
+        #deepcopy so that if GUI is changed during acquisition is in progress, won't change running acquisition
+        self._htls_settings = htls_settings
+        self._acq_gui = acq_gui
+        self._acq_directory = acq_directory
+        self._abort_flag = abort_flag
+        self._acq_settings = self._htls_settings.acq_settings
+        self._adv_settings = self._acq_settings.adv_settings
+        self._sequence_helpers = SequenceHelpers(self._acq_settings, self._acq_gui, self._acq_directory, self._abort_flag)
 
     def run(self):
         self._acquire_fish()
 
     def _acquire_fish(self):
-        Camera.set_binning(Camera.DEFAULT_BINNING)
-        Camera.set_exposure(Camera.DETECTION_EXPOSURE)
-        pycro.set_channel(pycro.GFP_CHANNEL)
-        noise_image = self._get_snap_array()
-        noise_thresh = np.mean(noise_image) - HTLSSequence._STD_THRESHOLD_FACTOR*np.std(noise_image)
-        Camera.set_binning(Camera.DETECTION_BINNING)
-        pycro.set_channel(pycro.BF_CHANNEL)
-        bf_image = self._get_snap_array()
-        fish_detect_thresh = np.mean(bf_image) - HTLSSequence._STD_THRESHOLD_FACTOR*np.std(bf_image)
-        x_step_size = (1 - HTLSSequence._REGION_OVERLAP)*core.get_image_width()*core.get_pixel_size_um()
+        region_step_size = (1 - HTLSSequence._REGION_OVERLAP)*core.get_image_width()*core.get_pixel_size_um()
+        start_pos = self._htls_settings.capillary_start_pos
+        end_pos = copy.deepcopy(self._htls_settings.capillary_start_pos)
+        end_pos[0] += HTLSSequence._STITCH_IMAGE_LENGTH_UM
+        Stage.move_stage(*start_pos)
+        std_bf, mean_bf = self._get_fish_detect_thresh()
         fish_num = 0
         time_no_fish_s = 0
-        start_pos = self._acq_settings.capillary_start_pos
-        end_pos = self._acq_settings.capillary_end_pos
-        while fish_num < self._acq_settings.num_fish:
-            self._acq_directory.set_fish_num(fish_num + 1)
-            self._update_acq_status("Initializing camera")
+        while fish_num < self._htls_settings.num_fish:
+            Stage.move_stage(*start_pos)
+            self._acq_directory.set_fish_num(fish_num)
+            self._sequence_helpers._update_acq_status("Initializing camera")
             Camera.set_binning(Camera.DETECTION_BINNING)
             Camera.set_exposure(Camera.DETECTION_EXPOSURE)
             pycro.set_channel(pycro.BF_CHANNEL)
-            self._update_acq_status("Starting pump")
-            #fill pump before so we don't have to query the pump while detecting
-            #the fish
-            Valves.open()
-            Pump.fill()
-            Pump.set_port("O")
-            Pump.set_speed(Pump.DEFAULT_SPEED)
-            Pump.set_velocity(Pump.DETECTION_VELOCITY)
-            Pump.set_zero()
-            self._update_acq_status("Waiting for fish")
+            self._sequence_helpers._update_acq_status("Starting pump")
+            self._init_pump()
+            self._sequence_helpers._update_acq_status("Waiting for fish")
             try:
-                time_no_fish_s = self._wait_for_fish(fish_detect_thresh, time_no_fish_s)
+                time_no_fish_s = self._wait_for_fish(std_bf, mean_bf, time_no_fish_s, fish_num)
             except exceptions.DetectionTimeoutException:
                 break
             Valves.close()
             Pump.terminate()
-            if not self._is_fish():
-                continue
-            try:
-                self._update_acq_status("Finding fish position")
-                x_offset = fish_detection.get_region_1_x_offset(start_pos, end_pos, x_step_size)
-            except (exceptions.BubbleException, exceptions.WeirdFishException):
-                continue
+            self._sequence_helpers._update_acq_status("Determining fish position")
+            x_offset = fish_detection.get_region_1_x_offset(start_pos, end_pos, HTLSSequence._STITCH_STEP_SIZE_UM, fish_num)
             time_no_fish_s = 0
-            Camera.set_binning(Camera.DEFAULT_BINNING)
-            dx = end_pos[0] - start_pos[0]
-            dy = end_pos[1] - start_pos[1]
-            dz = end_pos[2] - start_pos[2]
-            x_stage_dir = 1 if start_pos[1] <= end_pos[0] else -1
-            x_0 = start_pos[0] + x_stage_dir*abs(x_offset)
-            init_factor = (x_0 - np.mean((start_pos[0], end_pos[0])))/dx + 0.5
-            y_0 = init_factor*dy + start_pos[1]
-            z_0 = init_factor*dz + start_pos[2]
-            step_factor = x_step_size/abs(dx)
-            x_incr = x_step_size*x_stage_dir
-            y_incr = step_factor*dy
-            z_incr = step_factor*dz
-            for region_num, region in enumerate(self._acq_settings.fish_settings.region_list):
-                self._update_region_label(region_num)
-                region.x_pos = x_0 + region_num*x_incr
-                region.y_pos = y_0 + region_num*y_incr
-                region.z_pos = z_0 + region_num*z_incr
-                self._move_to_region(region)
+            #copy fish so fish settings aren't modified
+            fish = copy.deepcopy(self._htls_settings.fish_settings)
+            for region_num, region in enumerate(fish.region_list):
+                self._sequence_helpers._update_acq_status(f"Moving to region {region_num + 1}")
+                region.x_pos = start_pos[0] + x_offset - region_num*region_step_size
+                region.y_pos = start_pos[1]
+                region.z_pos = start_pos[2]
+                self._sequence_helpers._move_to_region(region)
                 if region.z_stack_enabled:
-                    self._update_acq_status("Determining z-stack positions")
-                    self._set_z_stack_pos(noise_thresh, region)
-                self._acq_settings.fish_settings.region_list.append[region]
-            self._run_imaging_sequences(region)
-            self._acq_settings.fish_settings.write_to_config(fish_num + 1)
+                    self._sequence_helpers._update_acq_status(f"Determining region {region_num + 1}z-stack positions")
+                    self._set_z_stack_pos(region)
+            self._sequence_helpers._update_directory(fish.size_mb)
+            Camera.set_binning(Camera.DEFAULT_BINNING)
+            self._sequence_helpers._acquire_regions(fish)
+            fish.write_to_config(fish_num + 1)
+            user_config.write_config_file(f"{self._acq_directory.root}/notes.txt")
             fish_num += 1
-        user_config.write_config_file(f"{self._acq_directory.root}/notes.txt")
 
-    def _set_z_stack_pos(self, threshold, region: Region):
+    def _set_z_stack_pos(self, region: Region):
+        pycro.set_channel(pycro.NOISE_CHANNEL)
+        noise_image = self._get_snap_array()
+        threshold = np.mean(noise_image) + HTLSSequence._NOISE_THRESHOLD_FACTOR*np.std(noise_image)
         if region.z_stack_channel_list:
             channel = self._get_max_channel(region)
             pycro.set_channel(channel)
-            Stage.set_z_stage_speed(Stage._DEFAULT_STAGE_SPEED_UM_PER_S)
             for direction in [-1, 1]:
+                Stage.set_z_position(region.z_pos)
+                Stage.wait_for_z_stage()
                 max_z_pos = region.z_pos + direction*HTLSSequence._MAX_Z_STACK/2
                 start_time = time.time()
-                Stage.set_z_position(max_z_pos)
                 core.stop_sequence_acquisition()
                 core.start_continuous_sequence_acquisition(0)
+                Stage.set_z_position(max_z_pos)
+                core.clear_circular_buffer()
                 while True:
                     if core.get_remaining_image_count() > 0:
                         image = pycro.pop_next_image().get_raw_pixels()
                         if np.mean(image) < threshold:
+                            print("z stack position found")
+                            core.stop_sequence_acquisition()
                             Stage.halt()
                             if direction == -1:
                                 region.z_stack_start_pos = Stage.get_z_position()
@@ -470,14 +495,24 @@ class HTLSSequence(AcquisitionSequence):
                                 region.z_stack_end_pos = Stage.get_z_position()
                             break
                         elif time.time() - start_time > HTLSSequence._MAX_Z_STACK/2/Stage._DEFAULT_STAGE_SPEED_UM_PER_S + 1:
+                            print("z stack position failed")
+                            core.stop_sequence_acquisition()
                             if direction == -1:
                                 region.z_stack_start_pos = max_z_pos
                             else:
                                 region.z_stack_end_pos = max_z_pos
+                            break
                         core.clear_circular_buffer()
                     else:
                         core.sleep(0.5)
                 core.stop_sequence_acquisition()
+
+    def _get_fish_detect_thresh(self):
+        Camera.set_binning(Camera.DETECTION_BINNING)
+        Camera.set_exposure(Camera.DETECTION_EXPOSURE)
+        pycro.set_channel(pycro.BF_CHANNEL)
+        bf_image = self._get_snap_array()
+        return np.std(bf_image), np.mean(bf_image)
     
     def _get_max_channel(self, region: Region):
         maxes = []
@@ -491,21 +526,39 @@ class HTLSSequence(AcquisitionSequence):
         Camera.snap_image()
         return pycro.pop_next_image().get_raw_pixels()
     
-    def _wait_for_fish(self, threshold, time_no_fish_s):
+    def _get_z_stack_thresh(self):
+        pycro.set_channel(pycro.NOISE_CHANNEL)
+        noise_image = self._get_snap_array()
+        return np.mean(noise_image) + HTLSSequence._NOISE_THRESHOLD_FACTOR*np.std(noise_image)
+    
+    def _init_pump(self):
+        Valves.open()
+        Pump.fill()
+        Pump.set_port("O")
+        Pump.set_speed(Pump.DEFAULT_SPEED)
+        Pump.set_velocity(Pump.DETECTION_VELOCITY)
+        Pump.set_zero()
+    
+    def _wait_for_fish(self, std_bf, mean_bf, time_no_fish_s, fish_num):
         core.stop_sequence_acquisition()
         core.start_continuous_sequence_acquisition(0)
+        start_time = time.time()
         while True:
+            total_time = time_no_fish_s + time.time() - start_time
             if core.get_remaining_image_count() > 0:
-                image = pycro.pop_next_image().get_raw_pixels()
-                if np.mean(image) < threshold:
+                mm_image = pycro.pop_next_image()
+                image = mm_image.get_raw_pixels()
+                if np.std(image) > 1.2*std_bf and np.mean(image) < 0.7*mean_bf:
+                    data = pycro.MultipageDatastore(fr"H:\fish {fish_num} detection")
+                    data.put_image(mm_image)
+                    data.close()
                     break
-                elif time_no_fish_s > HTLSSequence._DETECT_TIMEOUT_S:
+                elif total_time > HTLSSequence._DETECT_TIMEOUT_S:
                     raise exceptions.DetectionTimeoutException
-                time_no_fish_s += Camera.DETECTION_EXPOSURE*constants.MS_TO_S
                 #clear buffer so that it doesn't fill. We're just analyzing the newest image
                 #received so we don't need to be storing the other images.
                 core.clear_circular_buffer()
             else:
                 core.sleep(0.5)
         core.stop_sequence_acquisition()
-        return time_no_fish_s
+        return total_time
