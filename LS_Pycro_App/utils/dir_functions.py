@@ -25,9 +25,13 @@ def is_enough_space(data_mb, required_percentage, dir: str) -> bool:
 
 
 def move_files_to_parent(child_dir):
+    """
+    Moves files and directories in child_dir to parent directory and then deletes 
+    child_dir.
+    """
     try:
-        for filename in os.listdir(child_dir):
-            shutil.move(f"{child_dir}/{filename}", os.path.dirname(child_dir))
+        for name in os.listdir(child_dir):
+            shutil.move(f"{child_dir}/{name}", os.path.dirname(child_dir))
         os.rmdir(child_dir)
     except:
         pass
