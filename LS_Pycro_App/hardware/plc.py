@@ -9,9 +9,7 @@ from LS_Pycro_App.utils.pycro import core
 @abstractattributes
 class Plc():
     #"abstract attributes" Interpreter will throw an error if the following aren't declared.
-    #_ADDR_CAM_OUT is the output that goes to the camera and _ADDR_STAGE_TTL is the TTL signal from the stage that
-    #goes high when the stage is scanning. 
-    _ADDR_CAM_OUT : int
+    #_ADDR_STAGE_TTL is the TTL signal from the stage that goes high when the stage is scanning. 
     _ADDR_STAGE_TTL : int
 
     _logger = logging.getLogger(__name__)
@@ -211,32 +209,46 @@ class Plc():
     @classmethod
     def _get_frame_interval(cls, step_size: int, z_scan_speed) -> int:
         """
-        Calculates frame_interval from step_size and z_scan_speed and returns it.
+        Calculates frame interval (the time interval between frames) in ms from step_size and z_scan_speed 
+        and returns it.
         """
-        #ceil is so the interval is greater than the framerate set in lsrm, which makes it so that 
-        #pulses aren't missed by the camera.
+        #ceil is to ensure interval is long enough so that trigger pulses aren't missed by the camera.
         return np.ceil((step_size/(z_scan_speed*constants.UM_TO_MM))*cls._CLOCK_TICKS_PER_MS)/cls._CLOCK_TICKS_PER_MS
 
     @classmethod
     def _get_frame_interval_from_framerate(cls, framerate):
         """
+        Calculates frame interval (the time interval between frames) in ms from framerate and returns it.
+
         Really similar to globals.framerate_to_exposure(), except uses np.ceil instead of floor.
         """
         return np.ceil((1/framerate*constants.S_TO_MS)*cls._CLOCK_TICKS_PER_MS)/cls._CLOCK_TICKS_PER_MS
 
     @classmethod
     def get_true_z_stack_stage_speed(cls, z_scan_speed: float):
+        """
+        Returns the corrected stage speed based on calculated frame interval.
+
+        The PLC has a 4kHz clock (terribly slow!) so this is here to compensate for the fact
+        that frame intervals can only be a multiple of 0.25 ms.
+        
+        For example, if for a z stack the stage is set to move at 30 um/s with a 1 um step
+        size, the frame interval without rounding would need to be 33.33 ms. However, since the clock
+        is 4kHz, the closest we can get is 33.25 or 33.50 ms. The frame interval is determined by rounding up,
+        so in this case, it would be 33.50 ms. If our stage speed stayed the same with this frame interval, it 
+        would move more than 1 um in 33.50 ms, so we calculate the corrected stage speed to match the frame interval.
+        """
+        #1 as argument for step size because we're simply trying to correct the stage so that it moves at
+        #1 um per frame interval.
         return round(1/(cls._get_frame_interval(1, z_scan_speed))*constants.MM_TO_UM, 3)
     
 
 class KlaPlc(Plc):
-    #33 is output 1 on the front panel of the tiger console and 46 is the internal address of the stage TTL signal
-    _ADDR_CAM_OUT = 33
+    #Address 46 is the internal address of the stage TTL signal
     _ADDR_STAGE_TTL = 46
 
 
 class WilPlc(Plc):
-    #33 is output 1 on the front panel of the tiger console and 34 is port 2. Can't use 46 like in the Klamath PLC
+    #Address 34 is port 2 on the Tiger Console. Can't use 46 like in the Klamath PLC
     #because the camera is separate from the tiger console on Willamette.
-    _ADDR_CAM_OUT = 33
     _ADDR_STAGE_TTL = 34

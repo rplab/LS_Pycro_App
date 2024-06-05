@@ -24,7 +24,7 @@ class Camera(ABC):
     _logger = logging.getLogger(__name__)
     CAM_NAME : str = core.get_camera_device()
 
-    _WAIT_FOR_IMAGE_MS : float = 0.1
+    _WAIT_FOR_IMAGE_MS : float = 0.01
     DEFAULT_EXPOSURE : float = 20
     
     @classmethod
@@ -64,6 +64,7 @@ class Camera(ABC):
         Snaps an image with the camera. Image is then put in circular buffer where it can be grabbed with
         utils.pycro.pop_next_image(), which will return the image as a Micro-Manager image object.
         """
+        core.stop_sequence_acquisition()
         #Originally when I scripted with MM, I would just use the snap() method in the studio.acquisition class, 
         # but this doesn't work with lsrm for some reason.
         core.start_sequence_acquisition(1, 0, True)
@@ -141,6 +142,9 @@ class Hamamatsu(Camera):
     """
     MAX_EXPOSURE = 2000
     MIN_EXPOSURE = .010
+    DEFAULT_BINNING = 1
+    DETECTION_BINNING = 2
+    DETECTION_EXPOSURE = 10
 
     #Hamamatsu property names
     _SENSOR_MODE_PROP = "SENSOR MODE"
@@ -279,3 +283,13 @@ class Hamamatsu(Camera):
         """
         return cls.READOUT_PER_ROW_S*(image_height/2 + cls.NUM_LINES_DELAY)
     
+    @classmethod
+    @handle_exception
+    def set_binning(cls, binning: int):
+        """
+        Sets binning to given binning, Binning should be an integer: 1 for no binning, 2 for 2x2 binning
+        or 4 for 4x4 binning.
+        """
+        cls.set_property("Binning", f"{binning}x{binning}")
+        cls.wait_for_camera()
+        

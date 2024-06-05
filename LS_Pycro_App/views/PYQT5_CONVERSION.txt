@@ -1,0 +1,6 @@
+#cmd command to convert ui file to PyQt5 python file.
+
+python -m PyQt5.uic.pyuic "C:\Users\marim\Desktop\LS_Pycro_App\LS_Pycro_App\views\ui\HTLSMainWindow.ui" -o "C:\Users\marim\Desktop\LS_Pycro_App\LS_Pycro_App\views\py\htls_main_window.py" -x
+
+
+
