@@ -1,30 +1,30 @@
 import numpy as np
+import skimage
 
 from LS_Pycro_App.utils.pycro import core
 
 
 def stitch_images(images: list[np.ndarray],
-                  positions: list[tuple[float, float]],
+                  positions: list[tuple[float, float, float]],
                   x_stage_polarity: int = 1,
                   y_stage_polarity: int = 1
                   ) -> np.ndarray:
     """
     Stitches images with micro-manager metadata. 
     """
-    for image_num, images in enumerate(images):
-        shape = core.get_image_width(), core.get_image_height()
-        new_image = images[image_num]
+    for image_num, image in enumerate(images):
         if image_num == 0:
-            start_positions = positions
+            start_position = positions[image_num]
             pixel_size = core.get_pixel_size_um()
-            stitched_x_range, stitched_y_range = _init_ranges(shape)
-            stitched_image = new_image
+            stitched_x_range, stitched_y_range = _init_ranges(image.shape)
+            stitched_image = image
         else:
             x_offset, y_offset = _get_xy_offsets(
-                start_positions, positions, pixel_size, x_stage_polarity, y_stage_polarity)
+                start_position, positions[image_num], pixel_size, x_stage_polarity, y_stage_polarity)
             stitched_image = _stitch_new_image(
-                new_image, stitched_image, x_offset, y_offset, shape, 
+                image, stitched_image, x_offset, y_offset, 
                 stitched_x_range, stitched_y_range)
+    skimage.io.imsave("STITCH_IMAGE.png", stitched_image)
     return stitched_image
 
 
@@ -38,8 +38,8 @@ def _init_ranges(shape: tuple[int, int]) -> tuple[list]:
     return stitched_x_range, stitched_y_range
 
 
-def _get_xy_offsets(start_positions: list[int], 
-                    positions: list[int], 
+def _get_xy_offsets(start_position: list[int], 
+                    position: list[int], 
                     pixel_size: float,
                     x_stage_polarity: int = 1,
                     y_stage_polarity: int = 1
@@ -48,8 +48,8 @@ def _get_xy_offsets(start_positions: list[int],
     Returns x and y pixel offets relative to the position of the first image
     added to the stitched image. 
     """
-    x_offset = x_stage_polarity*_get_pixel_offset(start_positions[0], positions[0], pixel_size)
-    y_offset = y_stage_polarity*_get_pixel_offset(start_positions[1], positions[1], pixel_size)
+    x_offset = x_stage_polarity*_get_pixel_offset(start_position[0], position[0], pixel_size)
+    y_offset = y_stage_polarity*_get_pixel_offset(start_position[1], position[1], pixel_size)
     return x_offset, y_offset
 
 
@@ -68,7 +68,6 @@ def _stitch_new_image(new_image: np.ndarray,
                       stitched_image: np.ndarray, 
                       x_offset: int, 
                       y_offset: int, 
-                      shape: list[int, int], 
                       stitched_x_range: list[int], 
                       stitched_y_range: list[int]
                       ) -> np.ndarray:
@@ -77,7 +76,7 @@ def _stitch_new_image(new_image: np.ndarray,
     Micro-Manager metadata.
     """
     new_x_range, new_y_range = _get_new_image_range(
-        x_offset, y_offset, shape)
+        x_offset, y_offset, new_image.shape)
     x_extensions, y_extensions = _get_stitched_extensions(
         stitched_x_range, stitched_y_range, new_x_range, new_y_range)
     stitched_x_range, stitched_y_range = _update_stitched_range(
@@ -86,7 +85,7 @@ def _stitch_new_image(new_image: np.ndarray,
     stitched_image = _add_stitched_extensions(
         stitched_image, x_extensions, y_extensions)
     slices = _get_new_image_position_slices(
-        x_extensions, y_extensions, shape)
+        x_extensions, y_extensions, new_image.shape)
     #If two images are added with the same stage position (ie, if z-stack 
     # is split into two files because it's too large for one), second region
     #would just overwrite the first. This takes a max projection of the
@@ -147,7 +146,7 @@ def _update_stitched_range(stitched_x_range: list[int],
     return stitched_x_range, stitched_y_range
 
 
-def _add_stitched_extensions(stitched_image: np.ndarray, 
+def _add_stitched_extensions(stitched_image: np.ndarray,
                              x_extensions: list[int], 
                              y_extensions: list[int]
                              ) -> np.ndarray:
@@ -177,19 +176,19 @@ def _add_stitched_extensions(stitched_image: np.ndarray,
 
 def _get_new_image_position_slices(x_extensions: list[int], 
                                    y_extensions: list[int], 
-                                   image_dims: list[int]
+                                   shape: list[int]
                                    ) -> tuple[slice, slice]:
     """
     Gets image position slices where new_image will be inserted
     into stitched_image array.
     """
     if x_extensions[0] > 0:
-        x_slice = slice(0, image_dims[1])
+        x_slice = slice(0, shape[1])
     else:
-        x_slice = slice(-x_extensions[0], image_dims[1] - x_extensions[0])
+        x_slice = slice(-x_extensions[0], shape[1] - x_extensions[0])
 
     if y_extensions[0] > 0:
-        y_slice = slice(0, image_dims[0])
+        y_slice = slice(0, shape[0])
     else:
-        y_slice = slice(-y_extensions[0], image_dims[0] - y_extensions[0])
+        y_slice = slice(-y_extensions[0], shape[0] - y_extensions[0])
     return x_slice, y_slice
