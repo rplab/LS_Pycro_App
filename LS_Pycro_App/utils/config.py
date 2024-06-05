@@ -77,10 +77,10 @@ class Config(configparser.ConfigParser):
             if value is not None:
                 #NOT_CONFIG_PROPS is a list that holds names of instance attributes that shouldn't be 
                 #written to config.
-                if hasattr(class_instance, "NOT_CONFIG_PROPS"):
+                try:
                     if not attr in class_instance.NOT_CONFIG_PROPS:
                         self.set(section, attr.strip("_"), value)
-                else:
+                except AttributeError:
                     self.set(section, attr.strip("_"), value)
         self.write_config_file(self.file_path)
     
