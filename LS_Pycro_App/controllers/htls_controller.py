@@ -59,7 +59,6 @@ class HTLSController(object):
         self._htls_settings = HTLSSettings()
         self._acq_settings = self._htls_settings.acq_settings
         self._adv_settings = self._acq_settings.adv_settings
-        self._acquisition = HTLSAcquisition(self._htls_settings)
 
         self._fish = self._htls_settings.fish_settings
         self._region_num = 0
@@ -113,9 +112,6 @@ class HTLSController(object):
         self.regions_dialog.start_x_line_edit.setValidator(validator)
         self.regions_dialog.start_y_line_edit.setValidator(validator)
         self.regions_dialog.start_z_line_edit.setValidator(validator)
-        self.regions_dialog.end_x_line_edit.setValidator(validator)
-        self.regions_dialog.end_y_line_edit.setValidator(validator)
-        self.regions_dialog.end_z_line_edit.setValidator(validator)
 
         validator = QtGui.QIntValidator()
         validator.setBottom(1)
@@ -137,12 +133,6 @@ class HTLSController(object):
         self.regions_dialog.start_x_line_edit.textEdited.connect(self._start_x_line_edit_event)
         self.regions_dialog.start_y_line_edit.textEdited.connect(self._start_y_line_edit_event)
         self.regions_dialog.start_z_line_edit.textEdited.connect(self._start_z_line_edit_event)
-
-        self.regions_dialog.end_go_to_button.clicked.connect(self.end_go_to_button_clicked)
-        self.regions_dialog.end_set_position_button.clicked.connect(self._end_set_position_button_clicked)
-        self.regions_dialog.end_x_line_edit.textEdited.connect(self._end_x_line_edit_event)
-        self.regions_dialog.end_y_line_edit.textEdited.connect(self._end_y_line_edit_event)
-        self.regions_dialog.end_z_line_edit.textEdited.connect(self._end_z_line_edit_event)
 
         self.regions_dialog.num_fish_line_edit.textEdited.connect(self.num_fish_line_edit_event)
         self.regions_dialog.fish_type_line_edit.textEdited.connect(self._fish_type_line_edit_event)
@@ -199,6 +189,10 @@ class HTLSController(object):
         self._adv_settings_dialog.backup_directory_check_box.clicked.connect(self._backup_directory_check_clicked)
         self._adv_settings_dialog.backup_directory_browse_button.clicked.connect(self._second_browse_button_clicked)
         self._adv_settings_dialog.backup_directory_line_edit.textEdited.connect(self._backup_directory_line_edit_event)
+
+        self._adv_settings_dialog.end_videos_check_box.clicked.connect(self._end_videos_check_box_clicked)
+        self._adv_settings_dialog.end_videos_num_frames_line_edit.textEdited.connect(self._end_videos_num_frames_line_edit_event)
+        self._adv_settings_dialog.end_videos_exposure_line_edit.textEdited.connect(self._end_videos_exposure_line_edit)
 
     def _set_additional_widget_settings(self):
         self._acq_settings_dialog.channel_order_list_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
@@ -330,12 +324,9 @@ class HTLSController(object):
         self.regions_dialog.add_notes_text_edit.setPlainText(str(self._fish.add_notes))
 
     def _position_widgets_update(self):
-        self.regions_dialog.start_x_line_edit.setText(str(self._htls_settings.capillary_start_pos[0]))
-        self.regions_dialog.start_y_line_edit.setText(str(self._htls_settings.capillary_start_pos[1]))
-        self.regions_dialog.start_z_line_edit.setText(str(self._htls_settings.capillary_start_pos[2]))
-        self.regions_dialog.end_x_line_edit.setText(str(self._htls_settings.capillary_end_pos[0]))
-        self.regions_dialog.end_y_line_edit.setText(str(self._htls_settings.capillary_end_pos[1]))
-        self.regions_dialog.end_z_line_edit.setText(str(self._htls_settings.capillary_end_pos[2]))
+        self.regions_dialog.start_x_line_edit.setText(str(self._htls_settings.start_pos[0]))
+        self.regions_dialog.start_y_line_edit.setText(str(self._htls_settings.start_pos[1]))
+        self.regions_dialog.start_z_line_edit.setText(str(self._htls_settings.start_pos[2]))
 
     def _region_z_stack_widgets_update(self):
         """
@@ -422,20 +413,9 @@ class HTLSController(object):
     def start_go_to_button_clicked(self):
         # Goes to position set in current instance of Region
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        x_pos = self._htls_settings.capillary_start_pos[0]
-        y_pos = self._htls_settings.capillary_start_pos[1]
-        z_pos = self._htls_settings.capillary_start_pos[2]
-        if None not in (x_pos, y_pos, z_pos):
-            with contextlib.suppress(exceptions.HardwareException):
-                Stage.move_stage(x_pos, y_pos, z_pos)
-        self._update_dialogs()
-
-    def end_go_to_button_clicked(self):
-        # Goes to position set in current instance of Region
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        x_pos = self._htls_settings.capillary_end_pos[0]
-        y_pos = self._htls_settings.capillary_end_pos[1]
-        z_pos = self._htls_settings.capillary_end_pos[2]
+        x_pos = self._htls_settings.start_pos[0]
+        y_pos = self._htls_settings.start_pos[1]
+        z_pos = self._htls_settings.start_pos[2]
         if None not in (x_pos, y_pos, z_pos):
             with contextlib.suppress(exceptions.HardwareException):
                 Stage.move_stage(x_pos, y_pos, z_pos)
@@ -452,25 +432,7 @@ class HTLSController(object):
             y_pos = Stage.get_y_position()
             z_pos = Stage.get_z_position()
         if None not in (x_pos, y_pos, z_pos):
-            self._htls_settings.capillary_start_pos = [x_pos, y_pos, z_pos]
-        else:
-            message = "Region cannot be set. Stage failed to return position."
-            self._logger.info(message)
-            print(message)
-        self._update_dialogs()
-
-    def _end_set_position_button_clicked(self):
-        # Gets current stage position and creates element of region_list
-        # with current settings in GUI. Currently, this method and the paste_regionButton
-        # are the only ways to initialize an element in the region_list.
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        x_pos, y_pos, z_pos = None, None, None
-        with contextlib.suppress(exceptions.HardwareException):
-            x_pos = Stage.get_x_position()
-            y_pos = Stage.get_y_position()
-            z_pos = Stage.get_z_position()
-        if None not in (x_pos, y_pos, z_pos):
-            self._htls_settings.capillary_end_pos = [x_pos, y_pos, z_pos]
+            self._htls_settings.start_pos = [x_pos, y_pos, z_pos]
         else:
             message = "Region cannot be set. Stage failed to return position."
             self._logger.info(message)
@@ -608,38 +570,19 @@ class HTLSController(object):
         # Sets x_pos in region
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            self._htls_settings.capillary_start_pos[0] = int(text)
+            self._htls_settings.start_pos[0] = int(text)
             self._update_dialogs()
 
     def _start_y_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            self._htls_settings.capillary_start_pos[1] = int(text)
+            self._htls_settings.start_pos[1] = int(text)
             self._update_dialogs()
 
     def _start_z_line_edit_event(self, text):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         with contextlib.suppress(ValueError):
-            self._htls_settings.capillary_start_pos[2] = int(text)
-            self._update_dialogs()
-    
-    def _end_x_line_edit_event(self, text):
-        # Sets x_pos in region
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        with contextlib.suppress(ValueError):
-            self._htls_settings.capillary_end_pos[0] = int(text)
-            self._update_dialogs()
-
-    def _end_y_line_edit_event(self, text):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        with contextlib.suppress(ValueError):
-            self._htls_settings.capillary_end_pos[1] = int(text)
-            self._update_dialogs()
-
-    def _end_z_line_edit_event(self, text):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        with contextlib.suppress(ValueError):
-            self._htls_settings.capillary_end_pos[2] = int(text)
+            self._htls_settings.start_pos[2] = int(text)
             self._update_dialogs()
 
     def num_fish_line_edit_event(self, text):
