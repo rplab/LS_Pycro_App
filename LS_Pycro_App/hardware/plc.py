@@ -32,6 +32,7 @@ class Plc():
     _VAL_DELAY = "9 - delay"
 
     #PLC element addresses
+    _ADDR_CAM_OUT = 33
     _ADDR_CLK = 192
     _ADDR_DELAY_1 = 1
     _ADDR_OR = 2
@@ -241,7 +242,7 @@ class Plc():
         #1 as argument for step size because we're simply trying to correct the stage so that it moves at
         #1 um per frame interval.
         return round(1/(cls._get_frame_interval(1, z_scan_speed))*constants.MM_TO_UM, 3)
-    
+
 
 class KlaPlc(Plc):
     #Address 46 is the internal address of the stage TTL signal
@@ -252,3 +253,4 @@ class WilPlc(Plc):
     #Address 34 is port 2 on the Tiger Console. Can't use 46 like in the Klamath PLC
     #because the camera is separate from the tiger console on Willamette.
     _ADDR_STAGE_TTL = 34
+    
