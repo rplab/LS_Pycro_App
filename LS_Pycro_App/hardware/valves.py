@@ -15,13 +15,13 @@ def init():
 def close():
     global are_open
     are_open = False
-    write_command("o")
+    write_command("c")
 
 
 def open():
     global are_open
     are_open = True
-    write_command("c")
+    write_command("o")
 
 
 def get_status():
