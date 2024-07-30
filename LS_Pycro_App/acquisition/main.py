@@ -73,10 +73,17 @@ class Acquisition(ABC, threading.Thread):
         """
     
     def _init_mm(self):
+        studio.live().set_live_mode_on(False)
         core.stop_sequence_acquisition()
         core.clear_circular_buffer()
         core.set_shutter_open(False)
         core.set_auto_shutter(True)
+
+    def _write_acquisition_notes(self, root_directory: str):
+        """
+        Writes current config as acquisition notes at acq_directory.root.
+        """
+        user_config.write_config_file(f"{root_directory}/notes.txt")
 
 
 class HardwareAcquisition(ABC):
@@ -113,17 +120,17 @@ class CLSAcquisition(Acquisition, HardwareAcquisition):
     def run(self):
         try:
             self._acq_gui.status_update("Initializing Acquisition")
+            self._init_mm()
             self._init_hardware()
+            self._write_acquisition_notes(self._acq_directory.root)
             self._abort_flag.abort = False
-            sequence = self._get_acq_sequence()
-            sequence.run()
+            self._get_acq_sequence().run()
         except exceptions.AbortAcquisitionException:
             self._abort_acquisition()
         except:
             self._logger.exception("exception raised during acquisition")
             self._abort_acquisition()
         else:
-            self._write_acquisition_notes()
             self._reset_hardware()
             studio.app().refresh_gui()
             self._acq_gui.status_update("Your acquisition was successful!")
@@ -151,19 +158,16 @@ class CLSAcquisition(Acquisition, HardwareAcquisition):
         Plc.set_for_z_stack(self._acq_settings.get_first_step_size(), self._adv_settings.z_stack_stage_speed)
 
     def _reset_hardware(self):
+        #set PLC to pulse continuously to send signal to camera in case it's frozen
+        #in external trigger mode.
         Plc.set_continuous_pulses(30)
         core.stop_sequence_acquisition()
         Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
         Camera.set_burst_mode()
         Plc.init_pulse_mode()
         core.clear_circular_buffer()
+        #joystick sometimes does weird thing after SCAN module is sent
         Stage.reset_joystick()
-
-    def _write_acquisition_notes(self):
-        """
-        Writes current config as acquisition notes at acq_directory.root.
-        """
-        user_config.write_config_file(f"{self._acq_directory.root}/notes.txt")
 
     
 class HTLSAcquisition(Acquisition, HardwareAcquisition):
@@ -186,8 +190,9 @@ class HTLSAcquisition(Acquisition, HardwareAcquisition):
     def run(self):
         try:
             self._acq_gui.status_update("Initializing Acquisition")
+            self._init_mm()
             self._init_hardware()
-            self._acq_gui._abort_flag = False
+            self._abort_flag.abort = False
             sequence = HTLSSequence(self._htls_settings, self._acq_gui, self._acq_directory, self._abort_flag)
             sequence.run()
         except exceptions.AbortAcquisitionException:
@@ -199,6 +204,8 @@ class HTLSAcquisition(Acquisition, HardwareAcquisition):
             self._reset_hardware()
             studio.app().refresh_gui()
             self._acq_gui.status_update("Your acquisition was successful!")
+        finally:
+            self._write_acquisition_notes(self._acq_directory.root)
 
     def _abort_acquisition(self):
         self._acq_gui.status_update("Aborting Acquisition")
@@ -218,6 +225,8 @@ class HTLSAcquisition(Acquisition, HardwareAcquisition):
 
     def _reset_hardware(self):
         Pump.terminate()
+        #set PLC to pulse continuously to send signal to camera in case it's frozen
+        #in external trigger mode.
         Plc.set_continuous_pulses(30)
         core.stop_sequence_acquisition()
         Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
