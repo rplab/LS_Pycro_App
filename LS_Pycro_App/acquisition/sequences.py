@@ -10,7 +10,7 @@ from LS_Pycro_App.models.acq_settings import AcqSettings, HTLSSettings, Fish, Re
 from LS_Pycro_App.models.acq_directory import AcqDirectory
 from LS_Pycro_App.acquisition.imaging import ImagingSequence, Snap, Video, SpectralVideo, ZStack, SpectralZStack
 from LS_Pycro_App.hardware import Stage, Camera, Pump, Valves
-from LS_Pycro_App.utils import constants, dir_functions, exceptions, fish_detection, pycro, user_config
+from LS_Pycro_App.utils import constants, dir_functions, exceptions, fish_detection, pycro
 from LS_Pycro_App.utils.pycro import BF_CHANNEL, core
 
 
@@ -398,12 +398,14 @@ class PosTimeAcquisition():
 
 class HTLSSequence():
     _DETECT_TIMEOUT_S = 300
-    _STITCH_STEP_SIZE_UM = 200
-    _STITCH_IMAGE_LENGTH_UM = 10000
+    _STITCH_STEP_SIZE_UM = 300
+    _STITCH_IMAGE_WIDTH_UM = 11000
     _BF_THRESHOLD_FACTOR = 0.6
-    _NOISE_THRESHOLD_FACTOR = 2
+    _Z_STACK_THRESHOLD_FACTOR = 1.2
     _REGION_OVERLAP = 0.05
-    _MAX_Z_STACK = 100
+    _MAX_Z_STACK = 1000
+    _FISH_SETTLE_PAUSE_S = 5
+    _SET_Z_STACK_SPEED = 200
 
     def __init__(self, htls_settings: HTLSSettings, acq_gui: HTLSAcqGui,
                  acq_directory: AcqDirectory, abort_flag: exceptions.AbortFlag):
@@ -415,99 +417,50 @@ class HTLSSequence():
         self._abort_flag = abort_flag
         self._acq_settings = self._htls_settings.acq_settings
         self._adv_settings = self._acq_settings.adv_settings
-        self._sequence_helpers = SequenceHelpers(self._acq_settings, self._acq_gui, self._acq_directory, self._abort_flag)
+        self._sequence_helpers = SequenceHelpers(self._acq_settings, self._acq_gui, self._acq_directory, self._abort_flag, self._logger)
 
     def run(self):
-        self._acquire_fish()
-
-    def _acquire_fish(self):
-        region_step_size = (1 - HTLSSequence._REGION_OVERLAP)*core.get_image_width()*core.get_pixel_size_um()
-        start_pos = self._htls_settings.capillary_start_pos
-        end_pos = copy.deepcopy(self._htls_settings.capillary_start_pos)
-        end_pos[0] += HTLSSequence._STITCH_IMAGE_LENGTH_UM
-        Stage.move_stage(*start_pos)
-        std_bf, mean_bf = self._get_fish_detect_thresh()
+        self._htls_settings.remove_fish_sections()
+        start_pos = self._htls_settings.start_pos
+        std_detect, mean_detect = self._get_fish_detect_stats()
+        z_stack_thresh = self._get_z_stack_thresh()
         fish_num = 0
         time_no_fish_s = 0
         while fish_num < self._htls_settings.num_fish:
-            Stage.move_stage(*start_pos)
-            self._acq_directory.set_fish_num(fish_num)
-            self._sequence_helpers._update_acq_status("Initializing camera")
-            Camera.set_binning(Camera.DETECTION_BINNING)
-            Camera.set_exposure(Camera.DETECTION_EXPOSURE)
-            pycro.set_channel(pycro.BF_CHANNEL)
-            self._sequence_helpers._update_acq_status("Starting pump")
-            self._init_pump()
-            self._sequence_helpers._update_acq_status("Waiting for fish")
             try:
-                time_no_fish_s = self._wait_for_fish(std_bf, mean_bf, time_no_fish_s, fish_num)
+                self._sequence_helpers._abort_check()
+                Stage.move_stage(*self._htls_settings.start_pos)
+                time_no_fish_s = self._wait_for_fish(std_detect, mean_detect, time_no_fish_s)
             except exceptions.DetectionTimeoutException:
                 break
-            Valves.close()
-            Pump.terminate()
             self._sequence_helpers._update_acq_status("Determining fish position")
-            x_offset = fish_detection.get_region_1_x_offset(start_pos, end_pos, HTLSSequence._STITCH_STEP_SIZE_UM, fish_num)
+            try:
+                x_offset = fish_detection.get_region_1_x_offset(start_pos, self._get_end_pos(), HTLSSequence._STITCH_STEP_SIZE_UM, fish_num)
+            except ValueError:
+                continue
             time_no_fish_s = 0
             #copy fish so fish settings aren't modified
             fish = copy.deepcopy(self._htls_settings.fish_settings)
-            for region_num, region in enumerate(fish.region_list):
-                self._sequence_helpers._update_acq_status(f"Moving to region {region_num + 1}")
-                region.x_pos = start_pos[0] + x_offset - region_num*region_step_size
-                region.y_pos = start_pos[1]
-                region.z_pos = start_pos[2]
-                self._sequence_helpers._move_to_region(region)
-                if region.z_stack_enabled:
-                    self._sequence_helpers._update_acq_status(f"Determining region {region_num + 1}z-stack positions")
-                    self._set_z_stack_pos(region)
-            self._sequence_helpers._update_directory(fish.size_mb)
-            Camera.set_binning(Camera.DEFAULT_BINNING)
-            self._sequence_helpers._acquire_regions(fish)
-            fish.write_to_config(fish_num + 1)
-            user_config.write_config_file(f"{self._acq_directory.root}/notes.txt")
+            self._htls_settings.fish_list.append(fish)
+            self._set_region_positions(fish, start_pos, x_offset, z_stack_thresh)
+            self._acquire_fish(fish, fish_num)
+            if self._adv_settings.end_videos_enabled:
+                self._sequence_helpers._acquire_end_videos([fish_num])
             fish_num += 1
 
-    def _set_z_stack_pos(self, region: Region):
-        pycro.set_channel(pycro.NOISE_CHANNEL)
-        noise_image = self._get_snap_array()
-        threshold = np.mean(noise_image) + HTLSSequence._NOISE_THRESHOLD_FACTOR*np.std(noise_image)
-        if region.z_stack_channel_list:
-            channel = self._get_max_channel(region)
-            pycro.set_channel(channel)
-            for direction in [-1, 1]:
-                Stage.set_z_position(region.z_pos)
-                Stage.wait_for_z_stage()
-                max_z_pos = region.z_pos + direction*HTLSSequence._MAX_Z_STACK/2
-                start_time = time.time()
-                core.stop_sequence_acquisition()
-                core.start_continuous_sequence_acquisition(0)
-                Stage.set_z_position(max_z_pos)
-                core.clear_circular_buffer()
-                while True:
-                    if core.get_remaining_image_count() > 0:
-                        image = pycro.pop_next_image().get_raw_pixels()
-                        if np.mean(image) < threshold:
-                            print("z stack position found")
-                            core.stop_sequence_acquisition()
-                            Stage.halt()
-                            if direction == -1:
-                                region.z_stack_start_pos = Stage.get_z_position()
-                            else:
-                                region.z_stack_end_pos = Stage.get_z_position()
-                            break
-                        elif time.time() - start_time > HTLSSequence._MAX_Z_STACK/2/Stage._DEFAULT_STAGE_SPEED_UM_PER_S + 1:
-                            print("z stack position failed")
-                            core.stop_sequence_acquisition()
-                            if direction == -1:
-                                region.z_stack_start_pos = max_z_pos
-                            else:
-                                region.z_stack_end_pos = max_z_pos
-                            break
-                        core.clear_circular_buffer()
-                    else:
-                        core.sleep(0.5)
-                core.stop_sequence_acquisition()
+    def _acquire_fish(self, fish: Fish, fish_num: int):
+        Camera.set_binning(Camera.DEFAULT_BINNING)
+        self._sequence_helpers._update_directory(fish.size_mb)
+        self._acq_directory.set_fish_num(fish_num)
+        self._sequence_helpers._acquire_regions(fish)
+        fish.write_to_config(fish_num) 
 
-    def _get_fish_detect_thresh(self):
+    def _get_end_pos(self):
+        end_pos = copy.deepcopy(self._htls_settings.start_pos)
+        end_pos[0] += HTLSSequence._STITCH_IMAGE_WIDTH_UM
+        return end_pos
+
+    def _get_fish_detect_stats(self):
         Camera.set_binning(Camera.DETECTION_BINNING)
         Camera.set_exposure(Camera.DETECTION_EXPOSURE)
         pycro.set_channel(pycro.BF_CHANNEL)
@@ -522,43 +475,108 @@ class HTLSSequence():
             maxes.append(np.max(image))
         return region.z_stack_channel_list[np.argmax(maxes)]
     
+    def _get_region_distance(self):
+        return (1 - HTLSSequence._REGION_OVERLAP)*core.get_image_width()*core.get_pixel_size_um()
+    
     def _get_snap_array(self) -> np.ndarray:
+        """
+        Snaps image and returns it as ndarray
+        """
         Camera.snap_image()
         return pycro.pop_next_image().get_raw_pixels()
     
     def _get_z_stack_thresh(self):
-        pycro.set_channel(pycro.NOISE_CHANNEL)
-        noise_image = self._get_snap_array()
-        return np.mean(noise_image) + HTLSSequence._NOISE_THRESHOLD_FACTOR*np.std(noise_image)
+        """
+        Takes GFP image with no fish in field of view to determine background statistics, 
+        then returns threshold based on statistics to be used in determining
+        z-stack positions. Currently, uses standard deviation multiplied by a small factor.
+        """
+        pycro.set_channel(pycro.GFP_CHANNEL)
+        gfp_image = self._get_snap_array()
+        return HTLSSequence._Z_STACK_THRESHOLD_FACTOR*np.std(gfp_image)
     
-    def _init_pump(self):
+    def _start_pump(self):
         Valves.open()
         Pump.fill()
         Pump.set_port("O")
         Pump.set_speed(Pump.DEFAULT_SPEED)
         Pump.set_velocity(Pump.DETECTION_VELOCITY)
         Pump.set_zero()
+
+    def _set_region_positions(self, fish: Fish, start_pos: tuple[int], x_offset: float, std_z_stack: float):
+        for region_num, region in enumerate(fish.region_list):
+            self._sequence_helpers._update_acq_status(f"Moving to region {region_num + 1}")
+            region.x_pos, region.y_pos, region.z_pos = start_pos
+            region.x_pos += x_offset - region_num*self._get_region_distance()
+            self._sequence_helpers._move_to_region(region)
+            if region.z_stack_enabled:
+                self._sequence_helpers._update_acq_status(f"Determining region {region_num + 1} z-stack positions")
+                self._set_z_stack_pos(region, std_z_stack)
+
+    def _set_z_stack_pos(self, region: Region, threshold):
+        if region.z_stack_channel_list:
+            pycro.set_channel(region.z_stack_channel_list[0])
+            for direction in [-1, 1]:
+                Stage.set_z_position(region.z_pos)
+                Stage.wait_for_z_stage()
+                max_z_pos = region.z_pos + direction*HTLSSequence._MAX_Z_STACK/2
+                start_time = time.time()
+                core.stop_sequence_acquisition()
+                core.start_continuous_sequence_acquisition(0)
+                Stage.set_z_at_speed(max_z_pos, HTLSSequence._SET_Z_STACK_SPEED)
+                while True:
+                    if core.get_remaining_image_count() > 0:
+                        self._sequence_helpers._abort_check()
+                        image = pycro.pop_next_image().get_raw_pixels()
+                        if np.std(image) <= threshold:
+                            Stage.halt()
+                            break
+                        #If stage is reaches the end position without reaching threshold
+                        elif time.time() - start_time > HTLSSequence._MAX_Z_STACK/2/HTLSSequence._SET_Z_STACK_SPEED + 0.5:
+                            break
+                        else:
+                            core.sleep(0.5)
+                        core.clear_circular_buffer()
+                core.stop_sequence_acquisition()
+                if direction == -1:
+                    region.z_stack_start_pos = Stage.get_z_position()
+                else:
+                    region.z_stack_end_pos = Stage.get_z_position()
     
-    def _wait_for_fish(self, std_bf, mean_bf, time_no_fish_s, fish_num):
+    def _wait_for_fish(self, std_detect, mean_detect, time_no_fish_s):
+        self._sequence_helpers._update_acq_status("Initializing wait for fish")
+        #initialize camera to detection settings
+        Camera.set_binning(Camera.DETECTION_BINNING)
+        Camera.set_exposure(Camera.DETECTION_EXPOSURE)
+        pycro.set_channel(pycro.BF_CHANNEL)
+        #begins the pumping of the fish
+        self._start_pump()
+        self._sequence_helpers._update_acq_status("Waiting for fish")
         core.stop_sequence_acquisition()
         core.start_continuous_sequence_acquisition(0)
         start_time = time.time()
         while True:
-            total_time = time_no_fish_s + time.time() - start_time
+            total_time_s = time_no_fish_s + time.time() - start_time
             if core.get_remaining_image_count() > 0:
+                self._sequence_helpers._abort_check()
                 mm_image = pycro.pop_next_image()
                 image = mm_image.get_raw_pixels()
-                if np.std(image) > 1.2*std_bf and np.mean(image) < 0.7*mean_bf:
-                    data = pycro.MultipageDatastore(fr"H:\fish {fish_num} detection")
+                if np.std(image) > 1.1*std_detect and np.mean(image) < 0.8*mean_detect:
+                    data = pycro.MultipageDatastore(fr"E:\HTLS Test\fish detection")
                     data.put_image(mm_image)
                     data.close()
                     break
-                elif total_time > HTLSSequence._DETECT_TIMEOUT_S:
+                elif total_time_s > HTLSSequence._DETECT_TIMEOUT_S:
                     raise exceptions.DetectionTimeoutException
                 #clear buffer so that it doesn't fill. We're just analyzing the newest image
-                #received so we don't need to be storing the other images.
+                #received so we don't need to be storing the images.
                 core.clear_circular_buffer()
             else:
                 core.sleep(0.5)
         core.stop_sequence_acquisition()
-        return total_time
+        #Valves closing first here is important because it instantly stops the fish.
+        Valves.close()
+        Pump.terminate()
+        self._sequence_helpers._update_acq_status("Waiting for fish to settle")
+        time.sleep(HTLSSequence._FISH_SETTLE_PAUSE_S)
+        return total_time_s
