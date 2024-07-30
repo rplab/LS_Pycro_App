@@ -60,8 +60,8 @@ class GalvoSettings(object):
     DSLM_NUM_SAMPLES = 600
     DSLM_FREQ = 600
     DSLM_SAMPLE_RATE = DSLM_NUM_SAMPLES*DSLM_FREQ
-    LSRM_NUM_SAMPLES = 2048
-    # default pulse time is .01 seconds, which is too long considering the maximum framerate is 100 fps, or 1 ms exposure
+    BASE_LSRM_NUM_SAMPLES = 2048
+    #NIDAQ default pulse time is .01 seconds, which is too long considering the maximum framerate is 100 fps, or 1 ms exposure
     PULSE_TIME_S = .0001
 
     OFFSET_BOT_LIMIT = -3
@@ -72,10 +72,12 @@ class GalvoSettings(object):
     WIDTH_TOP_LIMIT = 2 * OFFSET_TOP_LIMIT
     FRAMERATE_BOT_LIMIT = 1
     FRAMERATE_TOP_LIMIT = 40
-    DELAY_BOT_LIMIT = 0
-    DELAY_TOP_LIMIT = 2
+    DELAY_BOT_LIMIT = 0.
+    DELAY_TOP_LIMIT = 2.
     NUM_LINES_BOT_LIMIT = 1
     NUM_LINES_TOP_LIMIT = 80
+    #framerate-laser_delay pairs for lsrm mode. Found empirically.
+    LASER_DELAYS = {5: 2., 10: 1., 20: 0.45, 30: 0.3, 40: 0.25}
 
     def __init__(self):
         self.is_lsrm = False
@@ -164,12 +166,9 @@ class GalvoSettings(object):
 
     @property
     def lsrm_laser_delay(self):
-        return self._lsrm_laser_delay
-
-    @lsrm_laser_delay.setter
-    def lsrm_laser_delay(self, value):
-        self._lsrm_laser_delay = round(general_functions.value_in_range(
-            value, self.DELAY_BOT_LIMIT, self.DELAY_TOP_LIMIT), 3)
+        framerates = list(self.LASER_DELAYS.keys())
+        #finds closest framerate and returns associated delay value in LASER_DELAYS dict
+        return self.LASER_DELAYS[min(framerates, key = lambda f: abs(f-self.lsrm_framerate))]
 
     @property
     def lsrm_num_lines(self):
@@ -179,14 +178,18 @@ class GalvoSettings(object):
     def lsrm_num_lines(self, value):
         self._lsrm_num_lines = int(general_functions.value_in_range(
             value, self.NUM_LINES_BOT_LIMIT, self.NUM_LINES_TOP_LIMIT))
+    
+    @property
+    def lsrm_num_samples(self):
+        return self.lsrm_num_lines + self.BASE_LSRM_NUM_SAMPLES
         
     @property
     def lsrm_sample_rate(self):
-        return self.LSRM_NUM_SAMPLES*(self.lsrm_framerate + 1)
+        return self.lsrm_num_samples*(self.lsrm_framerate + 1)
 
     @property
     def lsrm_ili(self):
-        return 1/self.lsrm_sample_rate
+        return 1/(self.lsrm_sample_rate)
 
     def write_to_config(self):
         user_config.write_class(self)
