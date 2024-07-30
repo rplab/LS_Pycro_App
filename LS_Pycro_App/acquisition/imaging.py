@@ -120,8 +120,8 @@ class ImagingSequence(ABC):
                     Galvo.set_lsrm_mode()
                     Plc.set_continuous_pulses(framerate)
                     Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-            else:
-                Camera.set_burst_mode()
+                else:
+                    Camera.set_burst_mode()
         elif Camera == LS_Pycro_App.hardware.camera.Pco:
             Camera.set_burst_mode()
 
@@ -309,10 +309,10 @@ class ZStack(ImagingSequence):
                     Galvo.set_lsrm_mode()
                     Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
                     Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-            elif self._adv_settings.edge_trigger_enabled or self._region.z_stack_step_size > 1:
-                Camera.set_edge_trigger_mode()
-            else:
-                Camera.set_sync_readout_mode()
+                elif self._adv_settings.edge_trigger_enabled or self._region.z_stack_step_size > 1:
+                    Camera.set_edge_trigger_mode()
+                else:
+                    Camera.set_sync_readout_mode()
         elif microscope == MicroscopeConfig.WILLAMETTE:
             Camera.set_ext_trig_mode()
 
@@ -399,8 +399,8 @@ class SpectralZStack(ZStack):
                     Galvo.set_lsrm_mode()
                     Plc.set_continuous_pulses(framerate)
                     Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-            else:
-                Camera.set_burst_mode()
+                else:
+                    Camera.set_burst_mode()
         elif Camera == LS_Pycro_App.hardware.camera.Pco:
             Camera.set_burst_mode()
 
