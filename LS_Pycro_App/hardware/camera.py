@@ -71,6 +71,7 @@ class Camera(ABC):
         #waits until image is actually in buffer. 
         while not core.get_remaining_image_count() > 0:
             core.sleep(cls._WAIT_FOR_IMAGE_MS)
+        core.stop_sequence_acquisition()
         cls._logger.info(f"Snapped image")
 
     @classmethod
@@ -82,6 +83,16 @@ class Camera(ABC):
         core.wait_for_device(cls.CAM_NAME)
         studio.live().set_live_mode_on(False)
         cls._logger.info(f"Stopped live acquisition")
+
+    @classmethod
+    @handle_exception
+    def start_live_acquisition(cls):
+        """
+        Turns live mode off in Micro-Manager, stopping live acquisition.
+        """
+        core.wait_for_device(cls.CAM_NAME)
+        studio.live().set_live_mode_on(True)
+        cls._logger.info(f"Started live acquisition")
         
 
 class Pco(Camera):
@@ -270,9 +281,8 @@ class Hamamatsu(Camera):
         
         Please see the framerate section of the Hamamatsu documentation for more details on this.
         """
-        if not core.is_sequence_running():
-            readout_delay = cls.get_edge_trigger_readout(core.get_image_height())
-            return (1/framerate - readout_delay)*constants.S_TO_MS
+        readout_delay = cls.get_edge_trigger_readout(core.get_image_height())
+        return (1/framerate - readout_delay)*constants.S_TO_MS
 
     @classmethod
     @handle_exception
