@@ -53,6 +53,9 @@ from LS_Pycro_App.models.galvo_settings import GalvoSettings
 from LS_Pycro_App.utils import constants
 
 
+#mirror voltage to move laser my one pixel row (with a 40x objective at max resolution)
+_VOLT_PER_LINE = .00045
+
 settings = GalvoSettings()
 settings.init_from_config()
 _logger = logging.getLogger(__name__)
@@ -151,17 +154,19 @@ def set_lsrm_mode():
         cam delay in ms in lsrm()
     """
     _reset_tasks()
-    # Configures clock timing. Note that the AcquisitionType here is FINITE instead of CONTINUOUS in DSLM.
-    sample_mode = nidaqmx.constants.AcquisitionType.FINITE
-    _scan_output.timing.cfg_samp_clk_timing(settings.lsrm_sample_rate, 
-                                            sample_mode=sample_mode,
-                                            samps_per_chan=settings.LSRM_NUM_SAMPLES)
+    #Add one to samples to allow room for sample to reset laser position to start position
+    _scan_output.timing.cfg_samp_clk_timing(settings.lsrm_sample_rate,
+                                            # Configures clock timing. Note that the AcquisitionType here is FINITE instead of CONTINUOUS in DSLM. 
+                                            sample_mode=nidaqmx.constants.AcquisitionType.FINITE,
+                                            #Add one to samples to allow room for sample to reset laser position to start position
+                                            samps_per_chan=settings.lsrm_num_samples + 1)
     # Creates start trigger and makes task retriggerable so that PLC pulses retrigger it. Also adds delay which acts
     # as the laser delay.
     _scan_output.triggers.start_trigger.cfg_dig_edge_start_trig(settings.PLC_INPUT_CHANNEL)
     _scan_output.triggers.start_trigger.retriggerable = True
     _scan_output.triggers.start_trigger.delay_units = nidaqmx.constants.DigitalWidthUnits.SECONDS
-    _scan_output.triggers.start_trigger.delay = settings.lsrm_laser_delay*constants.MS_TO_S
+    if settings.lsrm_laser_delay > 0:
+        _scan_output.triggers.start_trigger.delay = settings.lsrm_laser_delay*constants.MS_TO_S
 
     # Adds channel pulse output to _cam_output task. The delay added here is the camera delay. This whole block
     # just sets up the camera channel to output a pulse whenever a pulse is received at the _RETRIG_CHAN.
@@ -175,7 +180,7 @@ def set_lsrm_mode():
     _cam_output.triggers.start_trigger.cfg_dig_edge_start_trig(settings.PLC_INPUT_CHANNEL)
     _cam_output.triggers.start_trigger.retriggerable = True
     scan = _get_lsrm_scan_sample()
-    focus = _get_focus_sample(settings.LSRM_NUM_SAMPLES)
+    focus = _get_focus_sample(settings.lsrm_num_samples + 1)
     writer = AnalogMultiChannelWriter(_scan_output.out_stream)
     writer.write_many_sample(np.array([focus, scan]))
     _scan_output.start()
@@ -238,7 +243,12 @@ def _get_focus_sample(num_samples: int):
 
 
 def _get_lsrm_scan_sample():
-    return np.linspace(settings.lsrm_lower, settings.lsrm_upper, settings.LSRM_NUM_SAMPLES)
+    #append lower limit so mirror position returns to beginning. If this isn't appended, the top of the image will be
+    #dark because the laser has to travel up to the position at the beginning of the frame.
+    return np.append(np.linspace(settings.lsrm_lower, 
+                                 settings.lsrm_upper + _VOLT_PER_LINE*settings.lsrm_num_lines, 
+                                 settings.lsrm_num_samples), 
+                                 settings.lsrm_lower)
 
 
 def _reset_tasks():
