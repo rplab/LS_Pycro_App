@@ -41,11 +41,8 @@ class GalvoController(object):
     def __init__(self):
         self._logger = logging.getLogger(self.__class__.__name__)
         self.galvo_dialog = GalvoDialog()
-        # Set scanning combo box model
+
         self._scan_mode_model = QtGui.QStandardItemModel()
-        self.galvo_dialog.scan_mode_combo_box.setModel(self._scan_mode_model)
-        self._scan_mode_model.appendRow(QtGui.QStandardItem(GalvoController._DSLM_NAME))
-        self._scan_mode_model.appendRow(QtGui.QStandardItem(GalvoController._LSRM_NAME))
 
         # Initialize event handlers and validators
         self.galvo_dialog.offset_big_neg_button.clicked.connect(self._offset_big_neg_button_clicked)
@@ -110,8 +107,14 @@ class GalvoController(object):
         self.galvo_dialog.framerate_line_edit.setReadOnly(True)
 
         # Initialize Galvo.settings and dialog values
+        self._init_scan_mode_combo_box()
         self._update_dialog()
         self._set_scanning_mode()
+
+    def _init_scan_mode_combo_box(self):
+        self.galvo_dialog.scan_mode_combo_box.setModel(self._scan_mode_model)
+        self._scan_mode_model.appendRow(QtGui.QStandardItem(GalvoController._DSLM_NAME))
+        self._scan_mode_model.appendRow(QtGui.QStandardItem(GalvoController._LSRM_NAME))
 
     def _update_dialog(self):
         self._update_dialog_values()
@@ -149,9 +152,11 @@ class GalvoController(object):
         Switches between lsrm dialog mode and dslm dialog based on state of lsrm_bool. 
         """
         if Galvo.settings.is_lsrm:
+            self.galvo_dialog.scan_mode_combo_box.setCurrentText(self._LSRM_NAME)
             self.galvo_dialog.offset_label.setText("Position")
             self.galvo_dialog.resize(438, 350)
         else:
+            self.galvo_dialog.scan_mode_combo_box.setCurrentText(self._DSLM_NAME)
             self.galvo_dialog.offset_label.setText("Offset")
             self.galvo_dialog.resize(438, 140)
 
@@ -208,7 +213,6 @@ class GalvoController(object):
                 else:
                     Galvo.set_dslm_alignment_mode()
 
-
     def _scan_mode_combo_box_clicked(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         Galvo.settings.is_lsrm = self.galvo_dialog.scan_mode_combo_box.currentText() == GalvoController._LSRM_NAME
@@ -219,7 +223,9 @@ class GalvoController(object):
             else:
                 Camera.set_burst_mode()
                 Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
+        Camera.start_live_acquisition()
         self._update_dialog()
+        Galvo.settings.write_to_config()
 
     def _scanning_check_box_stage_changed(self):
         # If checked, starts laser scanning
@@ -230,6 +236,7 @@ class GalvoController(object):
         elif Galvo.settings.is_lsrm:
             Camera.set_burst_mode()
             Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
+        Camera.start_live_acquisition()
         self._set_scanning_mode()
 
     def _offset_big_neg_button_clicked(self):
@@ -425,7 +432,7 @@ class GalvoController(object):
 
     def _offset_line_edit_event(self):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        with contextlib.suppress(ValueError):
+        with contextlib.suppress(ValueError):  
             if self.galvo_dialog.offset_line_edit.hasAcceptableInput():
                 offset = float(self.galvo_dialog.offset_line_edit.text())
                 if Galvo.settings.is_lsrm:
