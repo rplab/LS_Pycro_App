@@ -895,7 +895,7 @@ class CLSController(object):
             self._acquisition = CLSAcquisition(self._acq_settings, 
                                                CLSAcqGui(self._acq_dialog, AbortDialog(), abort_flag), 
                                                AcqDirectory(self._acq_settings.directory), 
-                                               exceptions.AbortFlag())
+                                               abort_flag)
         self._acq_dialog.show()
         self._acq_dialog.activateWindow()
         self._acquisition.start()
