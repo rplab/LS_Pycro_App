@@ -899,15 +899,15 @@ class HTLSSettings():
     #### append_blank_fish()
         Appends new Fish() object to self.fish_list
     """
-    NOT_CONFIG_PROPS = ["acq_settings, fish_settings, region_settings"]
+    NOT_CONFIG_PROPS = ["acq_settings", "fish_list", "fish_settings", "region_settings"]
     FISH_SETTINGS_SECTION = "Fish Settings"
     REGION_FISH_NUM = "Settings"
 
     def __init__(self):
         self.acq_settings: AcqSettings = AcqSettings()
+        self.fish_list : list[Fish]= []
         self.fish_settings: Fish = Fish()
-        self.capillary_start_pos: list[int] = [0, 0, 0]
-        self.capillary_end_pos: list[int] = [0, 0, 0]
+        self.start_pos: list[int] = [0, 0, 0]
         self.num_fish: int = 0
         self.num_regions: int = 0
         self.init_from_config()
@@ -928,12 +928,28 @@ class HTLSSettings():
                 self.fish_settings.region_list.append(region)
             else:
                 break
-            region_num += 1 
+            region_num += 1
+
+    def remove_fish_sections(self):
+        """
+        Checks for all sections that match format of region_section and fish_section and removes them.
+        Example: "Fish 1 Notes" is of the form f"Fish {'[0-9]'} Notes", as is "Fish 150 Notes",
+        so bool(re.match()) returns True.
+        """
+        for section in user_config.sections():
+            region_section_bool = bool(re.match(Region.config_section('[0-9]', '[0-9]'), section))
+            fish_section_bool = bool(re.match(Fish.config_section('[0-9]'), section))
+            if region_section_bool or fish_section_bool:
+                user_config.remove_section(section) 
         
     def write_to_config(self):
         user_config.write_class(self)
         self._remove_fish_settings_sections()
+        self.remove_fish_sections()
+        for fish_num, fish in enumerate(self.fish_list):
+            fish.write_to_config(fish_num)
         self.fish_settings.write_to_config(HTLSSettings.REGION_FISH_NUM)
+        
         user_config.write_class(self.acq_settings)
 
     def _remove_fish_settings_sections(self):
