@@ -125,6 +125,7 @@ class Config(configparser.ConfigParser):
                 elif attr_type == str:
                     class_dict[key] = self.get(section, option)
                 else:
+                    #Mostly just used for lists but works pretty generally with other types like dicts!
                     class_dict[key] = ast.literal_eval(self.get(section, option))
             except:
                 exception = f"{section} {key} invalid data type for config initialization"
