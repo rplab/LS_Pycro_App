@@ -1,3 +1,6 @@
+import pandas as pd
+import pathlib
+
 import numpy as np
 import skimage
 import skimage.measure
@@ -9,7 +12,7 @@ from LS_Pycro_App.utils import pycro, stitch, exceptions
 from LS_Pycro_App.utils.pycro import core
 
 
-CORR_TEMPLATE_PATH = "LS_Pycro_App/utils/fish_detection_images/fish_template.png"
+CORR_TEMPLATE_PATHS = [str(file) for file in pathlib.Path("LS_Pycro_App/utils/fish_detection_images").iterdir() if ".png" in file.suffix]
 HOLE_AREA_UM = 4500
 FEATURE_AREA_UM = 65000
 SAME_FEATURE_MAX_D = 300
@@ -18,21 +21,6 @@ NUM_FEATURES = 2
 STD_FACTOR = 1.6
 DX_FACTOR = 0.2
 CROSS_CORRECTION = 1600
-
-
-def wait_for_fish():
-    core.stop_sequence_acquisition()
-    core.start_continuous_sequence_acquisition(0)
-    while True:
-        if core.get_remaining_image_count() > 0:
-            image = pycro.pop_next_image().get_raw_pixels()
-            if np.mean(image) < 30:
-                break
-            core.clear_circular_buffer()
-        else:
-            core.sleep(0.5)
-    core.stop_sequence_acquisition()
-    core.clear_circular_buffer()
         
         
 def get_stitched_image(stitched_positions):
@@ -66,6 +54,10 @@ def get_stitched_positions(start_pos, end_pos, x_step_size):
 def get_region_1_x_offset(start_pos, end_pos, x_step_size, fish_num):
     positions = get_stitched_positions(start_pos, end_pos, x_step_size)
     capillary_image = get_stitched_image(positions)
+    if fish_num > 0:
+        skimage.io.imsave(fr"E:\HTLS Test\fish detection_{fish_num}\STITCH_IMAGE.png", capillary_image)
+    else:
+        skimage.io.imsave(fr"E:\HTLS Test\fish detection\STITCH_IMAGE.png", capillary_image)
     return get_cross_cor_offset_um(capillary_image)
 
 
@@ -139,21 +131,66 @@ def fish_detected(image, bg_image_std, bg_image_mean):
 
 
 def get_cross_cor_offset_um(capillary_image: np.ndarray):
-    template = skimage.io.imread(CORR_TEMPLATE_PATH)
     capillary = skimage.exposure.rescale_intensity(capillary_image)
     image_1d = np.mean(capillary, 0)
-    template_1d = np.mean(template, 0)
-    #cross correlation requires functions to be centered at zero.
-    zero_rms_stitched = image_1d - np.mean(image_1d)
-    zero_rms_template = template_1d - np.mean(template_1d)
-    cross_offset = np.argmax(scipy.signal.correlate(zero_rms_stitched, zero_rms_template, "valid"))
-    print(f"cross offset: {cross_offset}")
-    #CROSS_CORRECTION is the position of region 1 relative to the template.
-    #We subtract the offset from the image width because position of fish is relative to
-    #where the fish entered from (the start position), which is currently from the right 
-    #side of the image.
-    corrected_offset = capillary_image.shape[1] - (cross_offset + CROSS_CORRECTION) - core.get_image_width()
-    print(f"corrected offset: {corrected_offset}")
-    print(f"corrected offset um: {corrected_offset*core.get_pixel_size_um()}")
-    #returns offset as um offset for stage
-    return corrected_offset*core.get_pixel_size_um()
+    offsets = []
+    for template_path in CORR_TEMPLATE_PATHS:
+        template = skimage.io.imread(template_path)
+        template_1d = np.mean(template, 0)
+        #cross correlation requires functions to be centered at zero.
+        zero_rms_stitched = image_1d - np.mean(image_1d)
+        zero_rms_template = template_1d - np.mean(template_1d)
+        cross_offset = np.argmax(scipy.signal.correlate(zero_rms_stitched, zero_rms_template, "valid"))
+        #CROSS_CORRECTION is the position of region 1 relative to the template.
+        #We subtract the offset from the image width because position of fish is relative to
+        #where the fish entered from (the start position), which is currently from the right 
+        #side of the image.
+        corrected_offset = capillary_image.shape[1] - (cross_offset + CROSS_CORRECTION) - core.get_image_width()
+        #returns offset as um offset for stage
+        offsets.append(corrected_offset*core.get_pixel_size_um())
+    return np.mean(offsets)
+
+def find_bubble_fish(stack_full):
+    """
+    Detects and classifies objects in images as 'Bubble' or 'Fish' based on region properties.
+
+    Parameters:
+    - stack_full (numpy.ndarray): Input image stack, either stitched or non-stitched.
+
+    Returns:
+    None: Prints classification result ('Bubble' or 'Fish') based on object properties.
+
+    Notes:
+    This function performs the following steps:
+    1. Inverts the input image stack.
+    2. Calculates the median and standard deviation of the inverted stack.
+    3. Determines a threshold value using the median and standard deviation.
+    4. Applies a simple thresholding operation to the stack.
+    5. Labels connected components in the thresholded image.
+    6. Computes region properties (label, area, bounding box) for each connected component.
+    7. Filters out small objects based on a predefined minimum area.
+    8. Determines the maximum object height.
+    9. Prints 'Bubble' if the maximum object height is greater than 95% of the stack height, else prints 'Fish'.
+    
+    The function is optimized for speed and is suitable for processing various types of images.
+
+    """
+    stack_full = skimage.util.invert(stack_full)
+    median = np.median(stack_full)
+    std = np.std(stack_full)
+    thresh_val = median + std
+    simple_thresh = stack_full > thresh_val  # type: ignore #manual value
+    labels = skimage.measure.label(simple_thresh)
+    info_table = pd.DataFrame(
+        skimage.measure.regionprops_table(
+            labels,
+            intensity_image=stack_full,
+            properties=['label', 'area', 'bbox']
+        )
+    ).set_index('label')
+    info_table['object_height'] = info_table['bbox-2'] - info_table['bbox-0']
+    info_table_filtered = info_table[info_table['area'] > 1000]
+    if (info_table_filtered.object_height.max() > 0.95 * stack_full.shape[0]):
+        print('Bubble')
+    else:
+        print('Fish')
