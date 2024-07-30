@@ -24,7 +24,6 @@ def stitch_images(images: list[np.ndarray],
             stitched_image = _stitch_new_image(
                 image, stitched_image, x_offset, y_offset, 
                 stitched_x_range, stitched_y_range)
-    skimage.io.imsave("STITCH_IMAGE.png", stitched_image)
     return stitched_image
 
 
