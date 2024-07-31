@@ -6,12 +6,7 @@ from LS_Pycro_App.utils import constants
 from LS_Pycro_App.utils.abc_attributes_wrapper import abstractattributes
 from LS_Pycro_App.utils.pycro import core
 
-@abstractattributes
 class Plc():
-    #"abstract attributes" Interpreter will throw an error if the following aren't declared.
-    #_ADDR_STAGE_TTL is the TTL signal from the stage that goes high when the stage is scanning. 
-    _ADDR_STAGE_TTL : int
-
     _logger = logging.getLogger(__name__)
     PLC_NAME = "PLogic:E:36"
 
@@ -33,6 +28,7 @@ class Plc():
 
     #PLC element addresses
     _ADDR_CAM_OUT = 33
+    _ADDR_STAGE_TTL = 34
     _ADDR_CLK = 192
     _ADDR_DELAY_1 = 1
     _ADDR_OR = 2
@@ -243,14 +239,3 @@ class Plc():
         #1 um per frame interval.
         return round(1/(cls._get_frame_interval(1, z_scan_speed))*constants.MM_TO_UM, 3)
 
-
-class KlaPlc(Plc):
-    #Address 46 is the internal address of the stage TTL signal
-    _ADDR_STAGE_TTL = 46
-
-
-class WilPlc(Plc):
-    #Address 34 is port 2 on the Tiger Console. Can't use 46 like in the Klamath PLC
-    #because the camera is separate from the tiger console on Willamette.
-    _ADDR_STAGE_TTL = 34
-    
