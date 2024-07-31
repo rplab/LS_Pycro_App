@@ -311,6 +311,20 @@ class Stage(ABC):
         core.set_position(cls.Z_STAGE_NAME, z_pos)
         cls._logger.info(f"Stage z position set to {z_pos} um")
 
+    
+    @classmethod
+    @handle_exception
+    def set_z_at_speed(cls, z_pos, speed):
+        """
+        Sets stage Z-axis to z_pos (in um)
+        """
+        cls.wait_for_z_stage()
+        cls.set_z_stage_speed(speed)
+        #z-position is set through the core because of a bug causing the stage on the
+        #Willamette set up to set its position to the inverse of the position set.      
+        core.set_position(cls.Z_STAGE_NAME, z_pos)
+        cls._logger.info(f"Stage z position set to {z_pos} um")
+
 
     @classmethod
     @handle_exception
