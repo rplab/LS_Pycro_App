@@ -212,8 +212,6 @@ class CLSController(object):
         self._acq_order_dialog.yes_button.clicked.connect(self._acq_order_yes_button_clicked)
         self._acq_order_dialog.cancel_button.clicked.connect(self._acquisition_order_cancel_button_clicked)
 
-        self._adv_settings_dialog.lsrm_check_box.clicked.connect(self._lsrm_check_box_clicked)
-
         self._adv_settings_dialog.video_spectral_check_box.clicked.connect(self._video_spectral_check_clicked)
 
         self._adv_settings_dialog.backup_directory_check_box.clicked.connect(self._backup_directory_check_clicked)
@@ -237,7 +235,6 @@ class CLSController(object):
         is_hamamatsu = issubclass(Camera, Hamamatsu)
         self._adv_settings_dialog.custom_exposure_check_box.setVisible(is_hamamatsu)
         self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(not is_hamamatsu)
-        self._adv_settings_dialog.lsrm_check_box.setEnabled(is_hamamatsu)
 
     def _update_dialogs(self):
         """
@@ -954,11 +951,6 @@ class CLSController(object):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings_dialog.acq_order_combo_box.setCurrentText(self._adv_settings.acq_order.name)
         self._acq_order_dialog.close()
-        self._update_dialogs()
-
-    def _lsrm_check_box_clicked(self, checked):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._adv_settings.lsrm_enabled = checked
         self._update_dialogs()
 
     def _video_spectral_check_clicked(self, checked):

@@ -182,8 +182,6 @@ class HTLSController(object):
         self._adv_settings_dialog.custom_exposure_check_box.clicked.connect(self._custom_exposure_check_box_clicked)
         self._adv_settings_dialog.z_stack_exposure_line_edit.textEdited.connect(self._z_stack_exposure_line_edit_event)
 
-        self._adv_settings_dialog.lsrm_check_box.clicked.connect(self._lsrm_check_box_clicked)
-
         self._adv_settings_dialog.video_spectral_check_box.clicked.connect(self._video_spectral_check_clicked)
 
         self._adv_settings_dialog.backup_directory_check_box.clicked.connect(self._backup_directory_check_clicked)
@@ -198,11 +196,10 @@ class HTLSController(object):
         self._acq_settings_dialog.channel_order_list_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.regions_dialog.region_table_view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
 
-        #custom exposure should always be allowed on WIL and lsrm isn't supported.
+        #custom exposure should always be allowed on WIL
         is_hamamatsu = Camera is Hamamatsu
         self._adv_settings_dialog.custom_exposure_check_box.setVisible(is_hamamatsu)
         self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(not is_hamamatsu)
-        self._adv_settings_dialog.lsrm_check_box.setEnabled(is_hamamatsu)
 
     def _update_dialogs(self):
         """
@@ -766,11 +763,6 @@ class HTLSController(object):
                     self._update_dialogs()
             else:
                 self._update_dialogs()
-
-    def _lsrm_check_box_clicked(self, checked):
-        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        self._adv_settings.lsrm_enabled = checked
-        self._update_dialogs()
 
     def _video_spectral_check_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
