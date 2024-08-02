@@ -437,8 +437,6 @@ class HTLSSequence():
                 time_no_fish_s = self._wait_for_fish(std_detect, mean_detect, time_no_fish_s)
             except exceptions.DetectionTimeoutException:
                 break
-            except exceptions.BubbleException:
-                continue
             self._sequence_helpers._update_acq_status("Determining fish position")
             try:
                 x_offset = fish_detection.get_region_1_x_offset(start_pos, self._get_end_pos(), HTLSSequence._STITCH_STEP_SIZE_UM, fish_num)
