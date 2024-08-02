@@ -402,7 +402,8 @@ class HTLSSequence():
     _DETECT_TIMEOUT_S = 300
     _STITCH_STEP_SIZE_UM = 300
     _STITCH_IMAGE_WIDTH_UM = 11000
-    _BF_THRESHOLD_FACTOR = 0.6
+    _INIT_DETECT_MEAN_FACTOR = 0.8
+    _INIT_DETECT_STD_FACTOR = 1.1
     _Z_STACK_THRESHOLD_FACTOR = 1.2
     _REGION_OVERLAP = 0.05
     _MAX_Z_STACK = 1000
@@ -424,6 +425,7 @@ class HTLSSequence():
     def run(self):
         self._htls_settings.remove_fish_sections()
         start_pos = self._htls_settings.start_pos
+        Stage.move_stage(*self._htls_settings.start_pos)
         std_detect, mean_detect = self._get_fish_detect_stats()
         z_stack_thresh = self._get_z_stack_thresh()
         fish_num = 0
@@ -435,6 +437,8 @@ class HTLSSequence():
                 time_no_fish_s = self._wait_for_fish(std_detect, mean_detect, time_no_fish_s)
             except exceptions.DetectionTimeoutException:
                 break
+            except exceptions.BubbleException:
+                continue
             self._sequence_helpers._update_acq_status("Determining fish position")
             try:
                 x_offset = fish_detection.get_region_1_x_offset(start_pos, self._get_end_pos(), HTLSSequence._STITCH_STEP_SIZE_UM, fish_num)
@@ -546,39 +550,49 @@ class HTLSSequence():
                     region.z_stack_end_pos = Stage.get_z_position()
     
     def _wait_for_fish(self, std_detect, mean_detect, time_no_fish_s):
-        self._sequence_helpers._update_acq_status("Initializing wait for fish")
-        #initialize camera to detection settings
-        Camera.set_binning(Camera.DETECTION_BINNING)
-        Camera.set_exposure(Camera.DETECTION_EXPOSURE)
-        pycro.set_channel(pycro.BF_CHANNEL)
-        #begins the pumping of the fish
-        self._start_pump()
-        self._sequence_helpers._update_acq_status("Waiting for fish")
-        core.stop_sequence_acquisition()
-        core.start_continuous_sequence_acquisition(0)
         start_time = time.time()
+        std_thresh = HTLSSequence._INIT_DETECT_STD_FACTOR*std_detect
+        mean_thresh = HTLSSequence._INIT_DETECT_MEAN_FACTOR*mean_detect
         while True:
-            total_time_s = time_no_fish_s + time.time() - start_time
-            if core.get_remaining_image_count() > 0:
-                self._sequence_helpers._abort_check()
-                mm_image = pycro.pop_next_image()
-                image = mm_image.get_raw_pixels()
-                if np.std(image) > 1.1*std_detect and np.mean(image) < 0.8*mean_detect:
-                    data = pycro.MultipageDatastore(fr"E:\HTLS Test\fish detection")
-                    data.put_image(mm_image)
-                    data.close()
-                    break
-                elif total_time_s > HTLSSequence._DETECT_TIMEOUT_S:
-                    raise exceptions.DetectionTimeoutException
-                #clear buffer so that it doesn't fill. We're just analyzing the newest image
-                #received so we don't need to be storing the images.
-                core.clear_circular_buffer()
-            else:
-                core.sleep(0.5)
-        core.stop_sequence_acquisition()
-        #Valves closing first here is important because it instantly stops the fish.
-        Valves.close()
-        Pump.terminate()
-        self._sequence_helpers._update_acq_status("Waiting for fish to settle")
-        time.sleep(HTLSSequence._FISH_SETTLE_PAUSE_S)
-        return total_time_s
+            try:
+                self._sequence_helpers._update_acq_status("Initializing wait for fish")
+                #initialize camera to detection settings
+                Camera.set_binning(Camera.DETECTION_BINNING)
+                Camera.set_exposure(Camera.DETECTION_EXPOSURE)
+                pycro.set_channel(pycro.BF_CHANNEL)
+                #begins the pumping of the fish
+                self._start_pump()
+                self._sequence_helpers._update_acq_status("Waiting for fish")
+                core.stop_sequence_acquisition()
+                core.start_continuous_sequence_acquisition(0)
+                while True:
+                    total_time_s = time_no_fish_s + time.time() - start_time
+                    if core.get_remaining_image_count() > 0:
+                        self._sequence_helpers._abort_check()
+                        mm_image = pycro.pop_next_image()
+                        image = mm_image.get_raw_pixels()
+                        if np.std(image) > std_thresh and np.mean(image) < mean_thresh:
+                            core.stop_sequence_acquisition()
+                            #Valves closing first here is important because it instantly stops the fish.
+                            Valves.close()
+                            Pump.terminate()
+                            #uncomment the three lines below this if you want to save detection images
+                            #data = pycro.MultipageDatastore(fr"E:\HTLS Test\fish detection")
+                            #data.put_image(mm_image)
+                            #data.close()
+                            if fish_detection.is_fish(image):
+                                self._sequence_helpers._update_acq_status("Waiting for fish to settle")
+                                time.sleep(HTLSSequence._FISH_SETTLE_PAUSE_S)
+                                break
+                            else:
+                                raise exceptions.BubbleException
+                        elif total_time_s > HTLSSequence._DETECT_TIMEOUT_S:
+                            raise exceptions.DetectionTimeoutException
+                        #clear buffer so that it doesn't fill. We're just analyzing the newest image
+                        #received so we don't need to be storing the images.
+                        core.clear_circular_buffer()
+                    else:
+                        core.sleep(0.5)
+                return total_time_s
+            except exceptions.BubbleException:
+                continue

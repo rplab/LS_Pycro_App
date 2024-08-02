@@ -150,15 +150,15 @@ def get_cross_cor_offset_um(capillary_image: np.ndarray):
         offsets.append(corrected_offset*core.get_pixel_size_um())
     return np.mean(offsets)
 
-def find_bubble_fish(stack_full):
+def is_fish(detection_image: np.ndarray):
     """
     Detects and classifies objects in images as 'Bubble' or 'Fish' based on region properties.
 
     Parameters:
-    - stack_full (numpy.ndarray): Input image stack, either stitched or non-stitched.
+    - detection_image (numpy.ndarray): Image taken as initial detection.
 
     Returns:
-    None: Prints classification result ('Bubble' or 'Fish') based on object properties.
+    True if determiend to be fish, False if not.
 
     Notes:
     This function performs the following steps:
@@ -170,27 +170,27 @@ def find_bubble_fish(stack_full):
     6. Computes region properties (label, area, bounding box) for each connected component.
     7. Filters out small objects based on a predefined minimum area.
     8. Determines the maximum object height.
-    9. Prints 'Bubble' if the maximum object height is greater than 95% of the stack height, else prints 'Fish'.
+    9. returns False if the maximum object height is greater than 95% of the stack height, else returns True.
     
     The function is optimized for speed and is suitable for processing various types of images.
 
+    Jonah Notes:
+    This function works sometimes but not always! There must be a better way of determining this :-)
+
     """
-    stack_full = skimage.util.invert(stack_full)
-    median = np.median(stack_full)
-    std = np.std(stack_full)
+    detection_image = skimage.util.invert(detection_image)
+    median = np.median(detection_image)
+    std = np.std(detection_image)
     thresh_val = median + std
-    simple_thresh = stack_full > thresh_val  # type: ignore #manual value
+    simple_thresh = detection_image > thresh_val  # type: ignore #manual value
     labels = skimage.measure.label(simple_thresh)
     info_table = pd.DataFrame(
         skimage.measure.regionprops_table(
             labels,
-            intensity_image=stack_full,
+            intensity_image=detection_image,
             properties=['label', 'area', 'bbox']
         )
     ).set_index('label')
     info_table['object_height'] = info_table['bbox-2'] - info_table['bbox-0']
     info_table_filtered = info_table[info_table['area'] > 1000]
-    if (info_table_filtered.object_height.max() > 0.95 * stack_full.shape[0]):
-        print('Bubble')
-    else:
-        print('Fish')
+    return not info_table_filtered.object_height.max() > 0.95 * detection_image.shape[0]
