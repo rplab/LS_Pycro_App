@@ -204,6 +204,7 @@ class CLSController(object):
 
         # Initialize AdvancedSettingsDialog event handlers
         self._adv_settings_dialog.z_stack_spectral_check_box.clicked.connect(self._z_stack_spectral_check_clicked)
+        self._adv_settings_dialog.z_stack_decon_check_box.clicked.connect(self._z_stack_decon_check_clicked)
         self._adv_settings_dialog.stage_speed_combo_box.activated.connect(self._stage_speed_combo_box_clicked)
         self._adv_settings_dialog.custom_exposure_check_box.clicked.connect(self._custom_exposure_check_box_clicked)
         self._adv_settings_dialog.z_stack_exposure_line_edit.textEdited.connect(self._z_stack_exposure_line_edit_event)
@@ -235,6 +236,9 @@ class CLSController(object):
         is_hamamatsu = issubclass(Camera, Hamamatsu)
         self._adv_settings_dialog.custom_exposure_check_box.setVisible(is_hamamatsu)
         self._adv_settings_dialog.z_stack_exposure_line_edit.setEnabled(not is_hamamatsu)
+
+        is_wil = microscope == MicroscopeConfig.WILLAMETTE
+        self._adv_settings_dialog.z_stack_decon_check_box.setVisible(not is_wil)
 
     def _update_dialogs(self):
         """
@@ -307,6 +311,7 @@ class CLSController(object):
     # update_adv_settings_dialog helpers
     def _update_adv_z_stack_widgets(self):
         self._adv_settings_dialog.z_stack_spectral_check_box.setChecked(self._adv_settings.spectral_z_stack_enabled)
+        self._adv_settings_dialog.z_stack_decon_check_box.setChecked(self._adv_settings.decon_z_stack_enabled)
         self._adv_settings_dialog.stage_speed_combo_box.setCurrentText(str(self._adv_settings.z_stack_stage_speed))
         self._adv_settings_dialog.z_stack_exposure_line_edit.setText(str(self._adv_settings.z_stack_exposure))
         if not microscope == MicroscopeConfig.WILLAMETTE:
@@ -905,6 +910,11 @@ class CLSController(object):
     def _z_stack_spectral_check_clicked(self, checked):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         self._adv_settings.spectral_z_stack_enabled = checked
+        self._update_dialogs()
+
+    def _z_stack_decon_check_clicked(self, checked):
+        self._logger.info(sys._getframe().f_code.co_name.strip("_"))
+        self._adv_settings.decon_z_stack_enabled = checked
         self._update_dialogs()
 
     def _stage_speed_combo_box_clicked(self):

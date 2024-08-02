@@ -8,7 +8,7 @@ import numpy as np
 from LS_Pycro_App.acquisition.acq_gui import CLSAcqGui, HTLSAcqGui
 from LS_Pycro_App.models.acq_settings import AcqSettings, HTLSSettings, Fish, Region
 from LS_Pycro_App.models.acq_directory import AcqDirectory
-from LS_Pycro_App.acquisition.imaging import ImagingSequence, Snap, Video, SpectralVideo, ZStack, SpectralZStack
+from LS_Pycro_App.acquisition.imaging import ImagingSequence, Snap, Video, SpectralVideo, ZStack, SpectralZStack, DeconZStack
 from LS_Pycro_App.hardware import Stage, Camera, Pump, Valves
 from LS_Pycro_App.utils import constants, dir_functions, exceptions, fish_detection, pycro
 from LS_Pycro_App.utils.pycro import BF_CHANNEL, core
@@ -92,6 +92,8 @@ class SequenceHelpers():
             self._update_acq_status("Initializing Z Stack")
             if self._adv_settings.spectral_z_stack_enabled:
                 self._acquire_imaging_sequence(SpectralZStack, region)
+            elif self._adv_settings.decon_z_stack_enabled:
+                self._acquire_imaging_sequence(DeconZStack, region)
             else:
                 self._acquire_imaging_sequence(ZStack, region)
 

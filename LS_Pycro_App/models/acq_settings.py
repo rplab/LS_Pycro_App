@@ -508,6 +508,7 @@ class AdvSettings():
         self._z_stack_exposure: float = 33.
         self._end_videos_exposure = 20.
         self.spectral_z_stack_enabled: bool = False
+        self.decon_z_stack_enabled: bool = False
         self.z_stack_stage_speed: int = 30
         self.speed_list: list[int] = self.get_speed_list()
         self.spectral_video_enabled: bool = False
@@ -537,7 +538,7 @@ class AdvSettings():
         self._end_videos_exposure = general_functions.value_in_range(value, Camera.MIN_EXPOSURE, Camera.MAX_EXPOSURE)
 
     def get_speed_list(self):
-        self.speed_list = [15, 30]
+        self.speed_list = [9, 15, 30]
         if issubclass(Camera, LS_Pycro_App.hardware.camera.Hamamatsu):
             self.speed_list.append(45)
             self.speed_list.append(60)

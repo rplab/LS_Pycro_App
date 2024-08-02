@@ -53,6 +53,7 @@ from LS_Pycro_App.models.galvo_settings import GalvoSettings
 from LS_Pycro_App.utils import constants
 
 
+DECON_MODE_SHIFT = .01
 #mirror voltage to move laser my one pixel row (with a 40x objective at max resolution)
 _VOLT_PER_LINE = .00045
 

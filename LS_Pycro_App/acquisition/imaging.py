@@ -24,6 +24,8 @@ all methods that rely on an instance of AcquisitionSettings should be set in acq
 import shutil
 from abc import ABC, abstractmethod
 
+import numpy as np
+
 import LS_Pycro_App.hardware.camera
 from LS_Pycro_App.models.acq_settings import AcqSettings, Region
 from LS_Pycro_App.models.acq_directory import AcqDirectory
@@ -301,18 +303,17 @@ class ZStack(ImagingSequence):
     """
     def _pre_acquisition_hardware_init(self, exposure):
         Camera.set_exposure(exposure)
-        if microscope == MicroscopeConfig.KLAMATH:
-            if Galvo:
-                if Galvo.settings.is_lsrm:
-                    framerate = general_functions.exposure_to_frequency(exposure)
-                    Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
-                    Galvo.set_lsrm_mode()
-                    Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
-                    Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-                elif self._adv_settings.edge_trigger_enabled or self._region.z_stack_step_size > 1:
-                    Camera.set_edge_trigger_mode()
-                else:
-                    Camera.set_sync_readout_mode()
+        if microscope == MicroscopeConfig.KLAMATH or microscope == MicroscopeConfig.HTLS:
+            if Galvo.settings.is_lsrm:
+                framerate = general_functions.exposure_to_frequency(exposure)
+                Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
+                Galvo.set_lsrm_mode()
+                Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
+                Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
+            elif self._adv_settings.edge_trigger_enabled or self._region.z_stack_step_size > 1:
+                Camera.set_edge_trigger_mode()
+            else:
+                Camera.set_sync_readout_mode()
         elif microscope == MicroscopeConfig.WILLAMETTE:
             Camera.set_ext_trig_mode()
 
@@ -378,7 +379,7 @@ class ZStack(ImagingSequence):
                     break
 
     def _initialize_z_stack(self):
-        if not self._acq_settings.is_step_size_same():
+        if not self._acq_settings.is_step_size_same() or (Galvo.settings.is_lsrm and (self._region.snap_enabled or self._region.video_enabled)):
             Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
         Stage.set_z_position(self._region.z_stack_start_pos)
         Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
@@ -430,3 +431,120 @@ class SpectralZStack(ZStack):
                 self._snap_image(slice_num, channel_num)
             slice_num += 1
         self._datastore.close_and_move_files()
+
+
+class DeconZStack(ZStack):
+    #number of different focal planes to use in taking decon images (should be odd!)
+    _DECON_NUM = 3
+
+    def _pre_acquisition_hardware_init(self, exposure):
+        Camera.set_exposure(exposure)
+        if microscope == MicroscopeConfig.KLAMATH or microscope == MicroscopeConfig.HTLS:
+            if self._adv_settings.edge_trigger_enabled or self._region.z_stack_step_size > 1:
+                Camera.set_edge_trigger_mode()
+            else:
+                Camera.set_sync_readout_mode()
+        elif microscope == MicroscopeConfig.WILLAMETTE:
+            Camera.set_ext_trig_mode()
+
+    def _set_summary_metadata(self, channel):
+        summary_builder = pycro.SummaryMetadataBuilder().z(self._region.z_stack_num_frames).t(DeconZStack._DECON_NUM).step(
+            self._region.z_stack_step_size)
+        summary_builder = summary_builder.channel_list(channel).step(self._region.z_stack_step_size)
+        self._datastore.set_summary_metadata(summary_builder.build())
+
+    def _pop_image_with_metadata(self, frame_num: int, channel_num: int = 0):
+        image = pycro.pop_next_image()
+        coords = pycro.ImageCoordsBuilder().t(frame_num%DeconZStack._DECON_NUM).z(int(np.floor(frame_num/DeconZStack._DECON_NUM))).build()
+        meta = pycro.ImageMetadataBuilder(image).x(self._region.x_pos).y(self._region.y_pos).z(
+            self._calculate_z_pos(int(np.floor(frame_num/DeconZStack._DECON_NUM)))).build()
+        return image.copy_with(coords, meta)
+        
+    def _calculate_z_pos(self, slice_num: int):
+        if self._region.z_stack_start_pos <= self._region.z_stack_end_pos:
+            z_pos = self._region.z_stack_start_pos + self._region.z_stack_step_size*slice_num
+        else:
+            z_pos = self._region.z_stack_start_pos - self._region.z_stack_step_size*slice_num
+        return z_pos
+    
+    def _acquire_images(self):
+        """
+        Acquire image method for sequence acquisitions. Current sequence acquisitions iterate through channels,
+        creating a separate datastore for each channel, sets summary metadata, begins sequence acquisition, and then
+        writes images. This is why this general implementation is possible.
+       
+        I can't see a future where sequence acquisitions don't follow this pattern, but if it happens, a different
+        implementation will have to be written.
+        """
+        self._pre_acquisition_hardware_init(self._adv_settings.z_stack_exposure)
+        for channel in self._region.z_stack_channel_list:
+            attempt_num = 1
+            while attempt_num < ImagingSequence.ATTEMPT_LIMIT:
+                self._abort_check()
+                yield f"Acquiring {channel} {self._get_name()}"
+                pycro.set_channel(channel)
+                self._create_datastore_with_summary(channel)
+                self._initialize_z_stack()
+                set_focus = Galvo.settings.focus
+                Galvo.settings.focus -= Galvo.DECON_MODE_SHIFT
+                Galvo.set_dslm_mode()
+                self._start_sequence_acquisition(self._region.z_stack_num_frames*DeconZStack._DECON_NUM)
+                Stage.scan_start(int(self._adv_settings.z_stack_stage_speed/DeconZStack._DECON_NUM))
+                try:
+                    for update_message in self._wait_for_sequence_images():
+                        yield update_message
+                except exceptions.CameraTimeoutException:
+                    #upon camera timeout exception, reattempts until attempt_num == attempt limit
+                    self._camera_timeout_response()
+                    attempt_num += 1
+                    if attempt_num < ImagingSequence.ATTEMPT_LIMIT:
+                        self._datastore.close()
+                        #deletes images, unless it's the final attempt
+                        shutil.rmtree(self._acq_directory.get_directory())
+                else:
+                    self._datastore.close_and_move_files()
+                    #breaks upon success
+                    break
+                finally:
+                    Galvo.settings.focus = set_focus
+
+    def _initialize_z_stack(self):
+        if not self._acq_settings.is_step_size_same():
+            Plc.set_for_z_stack(self._region.z_stack_step_size,  self._adv_settings.z_stack_stage_speed)
+        Stage.set_z_position(self._region.z_stack_start_pos)
+        Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
+
+    def _wait_for_sequence_images(self):
+        """
+        Image saving loop. This is a more advanced implementation of an example burst acquisition script on
+        the Micro-Manager website.
+
+        current_frame keeps track of current frame/slice for metadata
+       
+        time_no_image is the time without the core receiving an image. If this exceeds the CAMERA_TIMEOUT_MS constant,
+        the current acquisition will end and the camera_timeout_response() method will be called.
+
+        is_saving is set to True when sequence acquisition is over but there are still images in the buffer
+        """
+        current_frame = 0
+        time_no_image = 0
+        is_saving = False
+        start_focus = Galvo.settings.focus
+        while core.get_remaining_image_count() > 0 or core.is_sequence_running():
+            if core.get_remaining_image_count() > 0:
+                Galvo.settings.focus = start_focus + ((current_frame + 1) % DeconZStack._DECON_NUM)*Galvo.DECON_MODE_SHIFT
+                Galvo.set_dslm_mode()
+                self._abort_check()
+                image = self._pop_image_with_metadata(frame_num=current_frame)
+                self._datastore.put_image(image)
+                current_frame += 1
+                time_no_image = 0
+                if not (core.is_sequence_running() or is_saving):
+                    yield f"Saving {self._get_name()}"
+                    is_saving = True
+            elif time_no_image >= ImagingSequence.CAMERA_TIMEOUT_MS:
+                raise exceptions.CameraTimeoutException
+            else:
+                wait_for_image_ms = 1
+                core.sleep(wait_for_image_ms)
+                time_no_image += wait_for_image_ms
