@@ -272,7 +272,8 @@ class TimeSampAcquisition():
             self._time_point_helpers._update_time_point_num(time_point)
             self._acquire_fish()
             if self._time_point_helpers._is_time_point_left(time_point):
-                self._sequence_helpers._move_to_region(start_region)
+                if self._acq_settings.total_num_regions > 1:
+                    self._sequence_helpers._move_to_region(start_region)
                 self._time_point_helpers._wait_for_next_time_point(start_time)
             else:
                 break
