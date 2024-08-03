@@ -515,7 +515,7 @@ class AdvSettings():
         self.edge_trigger_enabled: bool = False
         self.acq_order = AcqOrder.TIME_SAMP
         self.backup_directory_enabled: bool = False
-        self.backup_directory_limit: float = 0.8
+        self.backup_directory_limit: float = 0.9
         self.backup_directory: str = "D:/"
         self.end_videos_enabled: bool = False
         self.end_videos_num_frames: int = 100
@@ -684,6 +684,13 @@ class AcqSettings():
     @property
     def num_fish(self):
         return len(self.fish_list)
+    
+    @property
+    def total_num_regions(self):
+        num_regions = 0
+        for fish in self.fish_list:
+            num_regions += fish.num_regions
+        return num_regions
 
     @property
     def image_width(self):
