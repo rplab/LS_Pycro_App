@@ -379,8 +379,9 @@ class ZStack(ImagingSequence):
                     break
 
     def _initialize_z_stack(self):
-        if not self._acq_settings.is_step_size_same() or (Galvo.settings.is_lsrm and (self._region.snap_enabled or self._region.video_enabled)):
-            Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
+        if not self._acq_settings.is_step_size_same():
+            if not Galvo or (Galvo.settings.is_lsrm and (self._region.snap_enabled or self._region.video_enabled)):
+                Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
         Stage.set_z_position(self._region.z_stack_start_pos)
         Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
 
