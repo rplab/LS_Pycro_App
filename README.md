@@ -62,13 +62,13 @@ SOFTWARE.
 <!-- GETTING STARTED -->
 ## Getting Started
 
+Minimal instructions below. See [instructions_setup_microscope_software_from_scratch.md](LS_Pycro_App/setup_from_scratch/instructions_setup_microscope_software_from_scratch.md) for more detailed instructions.
+
 ### Prerequisites
 
 This program requires:
 - Python 3.9 or later
 - Micromanager installation
-
-See [instructions_setup microscope acquisition software from scratch.md](LS_Pycro_App/setup_from_scratch/instructions_setup microscope acquisition software from scratch.md) for more detailed instructions.
 
 ### Installation
 
