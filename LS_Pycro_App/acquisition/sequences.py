@@ -140,7 +140,7 @@ class SequenceHelpers():
                     acq_directory.set_fish_num(fish_num)
                     acq_directory.set_region_num(region_num)
                     acq_directory.set_time_point(0)
-                    video = Video(region, self._acq_settings, self._abort_flag, acq_directory)
+                    video = Video(region, self._acq_settings, acq_directory, self._abort_flag)
                     for update_message in video.run():
                         self._update_acq_status(update_message)
 
