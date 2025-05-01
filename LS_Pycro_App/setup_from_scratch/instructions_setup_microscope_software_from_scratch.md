@@ -56,9 +56,9 @@ Create two shortcuts in Desktop/Microscope Software for ease of launching micros
 
 ## Setting up Micromanager for the first time
 
-- Open Micro-Manager: Go to Tools > Options, and set the same options as in the screenshot here [mmanager_options.png](LS_Pycro_App/setup_from_scratch/preference_screenshots/mmanager_options.png). 
+- Open Micro-Manager: Go to Tools > Options, and set the same options as in the screenshot here [mmanager_options.png]([https://github.com/rplab/LS_Pycro_App/blob/master/LS_Pycro_App/setup_from_scratch/preference_screenshots/mmanager_options.png]). 
 
-- ImageJ window (that opens alongwith Micro-manager): Go to Edit > Options > Memory & Threads, and and set the same options as in the screenshot here [imagej_options.png](LS_Pycro_App/setup_from_scratch/preference_screenshots/imagej_options.png).
+- ImageJ window (that opens alongwith Micro-manager): Go to Edit > Options > Memory & Threads, and and set the same options as in the screenshot here [imagej_options.png]([https://github.com/rplab/LS_Pycro_App/blob/master/LS_Pycro_App/setup_from_scratch/preference_screenshots/imagej_options.png]).
 
 ### Additional setting for KLA LSM
 - Devices > Load Hardware Configuration > Go to "<your-downloaded-LS_Pycro_App-location> -> mmanager_config_files -> KLA_LSM_config", and select all the files > Open. Note: there should be at least two config files: CLS.cfg and HTLS.cfg
