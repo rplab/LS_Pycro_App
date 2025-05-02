@@ -318,7 +318,7 @@ class ZStack(ImagingSequence):
         #calls default camera reset function from super class
         super()._camera_timeout_response()
         interval_ms = self._region.z_stack_step_size/self._adv_settings.z_stack_stage_speed*constants.S_TO_MS
-        Plc.set_to_external_trigger_mode(interval_ms)
+        Plc.set_to_external_trigger_pulse_mode(interval_ms)
 
     def _set_summary_metadata(self, channel):
         summary_builder = pycro.SummaryMetadataBuilder().z(self._region.z_stack_num_frames).step(
@@ -383,7 +383,7 @@ class ZStack(ImagingSequence):
         if not self._acq_settings.is_step_size_same():
             if not Galvo or (Galvo.settings.is_lsrm and (self._region.snap_enabled or self._region.video_enabled)):
                 interval_ms = self._region.z_stack_step_size/self._adv_settings.z_stack_stage_speed*constants.S_TO_MS
-                Plc.set_to_external_trigger_mode(interval_ms)
+                Plc.set_to_external_trigger_pulse_mode(interval_ms)
         Stage.set_z_position(self._region.z_stack_start_pos)
         Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
 
@@ -511,7 +511,7 @@ class DeconZStack(ZStack):
     def _initialize_z_stack(self):
         if not self._acq_settings.is_step_size_same():
             interval_ms = self._region.z_stack_step_size/self._adv_settings.z_stack_stage_speed*constants.S_TO_MS
-            Plc.set_to_external_trigger_mode(interval_ms)
+            Plc.set_to_external_trigger_pulse_mode(interval_ms)
         Stage.set_z_position(self._region.z_stack_start_pos)
         Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
 

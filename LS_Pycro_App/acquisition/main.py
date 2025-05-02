@@ -156,7 +156,7 @@ class CLSAcquisition(Acquisition, HardwareAcquisition):
 
     def _init_plc(self):
         interval_ms = (self._acq_settings.get_first_step_size()/self._adv_settings.z_stack_stage_speed)*constants.S_TO_MS
-        Plc.set_to_external_trigger_mode(interval_ms)
+        Plc.set_to_external_trigger_pulse_mode(interval_ms)
 
     def _reset_hardware(self):
         #set PLC to pulse continuously to send signal to camera in case it's frozen
@@ -223,7 +223,7 @@ class HTLSAcquisition(Acquisition, HardwareAcquisition):
 
     def _init_plc(self):
         interval_ms = self._htls_settings.fish_settings.region_list[0].z_stack_step_size/self._adv_settings.z_stack_stage_speed*constants.S_TO_MS
-        Plc.set_to_external_trigger_mode(interval_ms)
+        Plc.set_to_external_trigger_pulse_mode(interval_ms)
 
     def _reset_hardware(self):
         Pump.terminate()

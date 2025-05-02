@@ -26,7 +26,7 @@ def set_triggered_lsrm(exposure, pulse_interval_ms):
         if pulse_interval_ms*constants.MS_TO_S > 1/Camera.LSRM_MAX_FRAMERATE:
             raise ValueError("pulse interval is too short for LSRM")
         Galvo.set_lsrm_mode()
-        Plc.set_to_external_trigger_mode(pulse_interval_ms)
+        Plc.set_to_external_trigger_pulse_mode(pulse_interval_ms)
         Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
     else:
         message = "Cannot set system to continuous lsrm."
