@@ -33,4 +33,4 @@ def set_triggered_lsrm(exposure, pulse_interval_ms):
         if not Galvo:
             logger.warning(f"{message} Galvo is None.")
         if not (Camera is Hamamatsu):
-            logger.warning(f"{message} Galvo is not Hamamatsu.")
+            logger.warning(f"{message} Camera is not Hamamatsu.")
