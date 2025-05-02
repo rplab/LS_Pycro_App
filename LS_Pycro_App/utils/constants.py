@@ -21,4 +21,7 @@ MIN_TO_S = 60
 S_TO_MIN = 1/60
 S_IN_MIN = 60
 TO_TENTHS = 10
+
+# pulse interval used in camera freeze recovery.
+CAMERA_RECOVERY_PULSE_INTERVAL_MS = 20
     

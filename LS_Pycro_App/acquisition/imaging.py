@@ -29,9 +29,9 @@ import numpy as np
 import LS_Pycro_App.hardware.camera
 from LS_Pycro_App.models.acq_settings import AcqSettings, Region
 from LS_Pycro_App.models.acq_directory import AcqDirectory
-from LS_Pycro_App.hardware import Camera, Plc, Stage, Galvo
+from LS_Pycro_App.hardware import Camera, Plc, Stage, Galvo, multi_device
 from LS_Pycro_App.controllers.select_controller import microscope, MicroscopeConfig
-from LS_Pycro_App.utils import dir_functions, exceptions, pycro, general_functions
+from LS_Pycro_App.utils import constants, exceptions, pycro, general_functions
 from LS_Pycro_App.utils.pycro import core
 
 
@@ -113,15 +113,13 @@ class ImagingSequence(ABC):
             raise exceptions.AbortAcquisitionException
         
     def _pre_acquisition_hardware_init(self, exposure):
+        # No matter what, set exposure time
         Camera.set_exposure(exposure)
         if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
+            # 
             if Galvo:
                 if Galvo.settings.is_lsrm:
-                    framerate = general_functions.exposure_to_frequency(exposure)
-                    Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
-                    Galvo.set_lsrm_mode()
-                    Plc.set_continuous_pulses(framerate)
-                    Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
+                    multi_device.set_lsrm_from_exposure(exposure)
                 else:
                     Camera.set_burst_mode()
         elif Camera == LS_Pycro_App.hardware.camera.Pco:
@@ -159,11 +157,13 @@ class ImagingSequence(ABC):
                 image = self._pop_image_with_metadata(frame_num=current_frame)
                 self._datastore.put_image(image)
                 current_frame += 1
+                yield f"Acquired {current_frame + 1} / {self._region.z_stack_num_frames} frames"
                 time_no_image = 0
                 if not (core.is_sequence_running() or is_saving):
                     yield f"Saving {self._get_name()}"
                     is_saving = True
             elif time_no_image >= ImagingSequence.CAMERA_TIMEOUT_MS:
+                yield f"CameraTimeoutException raised during {self.__class__.__name__} sequence after no image for {round(time_no_image/10**3, 3)} seconds"
                 raise exceptions.CameraTimeoutException
             else:
                 core.sleep(self.WAIT_FOR_IMAGE_MS)
@@ -177,7 +177,7 @@ class ImagingSequence(ABC):
         """
         #Camera times out because it's expecting a certain number of pulses, and it if it doesn't receive them,
         #it freezes up. Plc is set to pulse so it unfreezes the camera, allowing us to stop the sequence acquisition.
-        Plc.set_continuous_pulses(20)
+        Plc.set_to_continuous_pulse_mode(constants.CAMERA_RECOVERY_PULSE_INTERVAL_MS)
         core.stop_sequence_acquisition()
         core.clear_circular_buffer()
         self._datastore.close()
@@ -303,13 +303,10 @@ class ZStack(ImagingSequence):
     """
     def _pre_acquisition_hardware_init(self, exposure):
         Camera.set_exposure(exposure)
-        if microscope == MicroscopeConfig.KLAMATH or microscope == MicroscopeConfig.HTLS:
-            if Galvo.settings.is_lsrm:
-                framerate = general_functions.exposure_to_frequency(exposure)
-                Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
-                Galvo.set_lsrm_mode()
-                Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
-                Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
+        if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
+            if Galvo and Galvo.settings.is_lsrm:
+                interval_ms = self._region.z_stack_step_size/self._adv_settings.z_stack_stage_speed*constants.S_TO_MS
+                multi_device.set_triggered_lsrm(exposure, interval_ms)
             elif self._adv_settings.edge_trigger_enabled or self._region.z_stack_step_size > 1:
                 Camera.set_edge_trigger_mode()
             else:
@@ -320,7 +317,8 @@ class ZStack(ImagingSequence):
     def _camera_timeout_response(self):
         #calls default camera reset function from super class
         super()._camera_timeout_response()
-        Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
+        interval_ms = self._region.z_stack_step_size/self._adv_settings.z_stack_stage_speed*constants.S_TO_MS
+        Plc.set_to_external_trigger_mode(interval_ms)
 
     def _set_summary_metadata(self, channel):
         summary_builder = pycro.SummaryMetadataBuilder().z(self._region.z_stack_num_frames).step(
@@ -371,8 +369,11 @@ class ZStack(ImagingSequence):
                     attempt_num += 1
                     if attempt_num < ImagingSequence.ATTEMPT_LIMIT:
                         self._datastore.close()
+                        yield f"raised CameraTimeoutException on attempt {attempt_num + 1}. Removing images and reaatempting"
                         #deletes images, unless it's the final attempt
                         shutil.rmtree(self._acq_directory.get_directory())
+                    else:
+                        yield f"Z stack failed {attempt_num + 1} attempts. Skipping to next imaging sequence."
                 else:
                     self._datastore.close_and_move_files()
                     #breaks upon success
@@ -381,7 +382,8 @@ class ZStack(ImagingSequence):
     def _initialize_z_stack(self):
         if not self._acq_settings.is_step_size_same():
             if not Galvo or (Galvo.settings.is_lsrm and (self._region.snap_enabled or self._region.video_enabled)):
-                Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
+                interval_ms = self._region.z_stack_step_size/self._adv_settings.z_stack_stage_speed*constants.S_TO_MS
+                Plc.set_to_external_trigger_mode(interval_ms)
         Stage.set_z_position(self._region.z_stack_start_pos)
         Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
 
@@ -397,10 +399,7 @@ class SpectralZStack(ZStack):
             if Galvo:
                 if Galvo.settings.is_lsrm:
                     framerate = general_functions.exposure_to_frequency(exposure)
-                    Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
-                    Galvo.set_lsrm_mode()
-                    Plc.set_continuous_pulses(framerate)
-                    Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
+                    multi_device.set_continuous_lsrm(framerate)
                 else:
                     Camera.set_burst_mode()
         elif Camera == LS_Pycro_App.hardware.camera.Pco:
@@ -511,7 +510,8 @@ class DeconZStack(ZStack):
 
     def _initialize_z_stack(self):
         if not self._acq_settings.is_step_size_same():
-            Plc.set_for_z_stack(self._region.z_stack_step_size,  self._adv_settings.z_stack_stage_speed)
+            interval_ms = self._region.z_stack_step_size/self._adv_settings.z_stack_stage_speed*constants.S_TO_MS
+            Plc.set_to_external_trigger_mode(interval_ms)
         Stage.set_z_position(self._region.z_stack_start_pos)
         Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
 

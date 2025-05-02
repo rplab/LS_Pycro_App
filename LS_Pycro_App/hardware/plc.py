@@ -8,6 +8,7 @@ from LS_Pycro_App.utils.pycro import core
 
 class Plc():
     _logger = logging.getLogger(__name__)
+    pulse_mode = False
     PLC_NAME = "PLogic:E:36"
 
     #PLC property names
@@ -90,13 +91,16 @@ class Plc():
         cls._set_cell(cls._ADDR_ONE_SHOT, cls._VAL_ONE_SHOT, cls._TRIGGER_PULSE_WIDTH, cls._ADDR_AND, cls._ADDR_CLK)
         cls._set_cell(cls._ADDR_CAM_OUT, cls._VAL_OUTPUT, cls._ADDR_ONE_SHOT, 0, 0)
 
-        cls._logger.info(f"PLC initialized with frame interval {frame_interval} ms")
+        cls.pulse_mode = True
+
+        cls._logger.info(f"PLC initialized to pulse mode with period {frame_interval} ms")
 
     @classmethod
     @handle_exception
-    def set_for_z_stack(cls, step_size: int, stage_scan_speed: float):
+    def set_to_external_trigger_pulse_mode(cls, interval_ms: float):
         """
-        Sets the frame interval of the PLC for use during z-stack acquisition. 
+        Sets the PLC into external trigger mode such that it will start pulsing at the given interval
+        when the trigger is HIGH.
         
         This is intended to be used after initialize_plc_for_z_stack() to update the frame interval
         to match the current step size. All other propertes set in initialize_plc_for_z_stack() 
@@ -104,15 +108,16 @@ class Plc():
 
         ### Parameters:
 
-        #### step_size : int
-            z-stack step_size in um
+        #### interval_ms: float
 
-        #### stage_scan_speed
-            z-stack scan speed in mm/s
+        Intended interval of pulses in milliseconds.
+
+        Note that the PLC only has a 4kHz clock, and so the actual interval set will be rounded up to the nearest
+        acceptable interval. i,e, if the intended period is 33.33 ms, this will be rounded up to 33.50 ms.
         """
         cls.wait_for_plc()
 
-        frame_interval = cls._get_frame_interval(step_size, stage_scan_speed)
+        pulse_interval = cls._get_pulse_interval(interval_ms)
 
         cls._set_pointer_position(cls._ADDR_DELAY_1)
         cls._edit_cell_input_1(cls._ADDR_STAGE_TTL)
@@ -121,23 +126,27 @@ class Plc():
         cls._edit_cell_input_2(cls._ADDR_STAGE_TTL)
 
         cls._set_pointer_position(cls._ADDR_DELAY_2)
-        cls._edit_cell_config(frame_interval*cls._CLOCK_TICKS_PER_MS)
+        cls._edit_cell_config(pulse_interval*cls._CLOCK_TICKS_PER_MS)
 
-        cls._logger.info(f"PLC set for z-stack with frame interval of {frame_interval} ms")
+        cls._logger.info(f"PLC set for z-stack with frame interval of {pulse_interval} ms")
 
     @classmethod
     @handle_exception
-    def set_continuous_pulses(cls, frequency: int):
+    def set_to_continuous_pulse_mode(cls, interval_ms: float):
         """
-        Initializes PLC to generate continuouse pulses at the given frequency.
+        Initializes PLC to generate continuouse pulses at the given interval_ms.
 
         ### Parameters:
 
-        #### frequency : int
-            frequency of pulses.
+         #### interval_ms: float
+
+        Intended interval of pulses in milliseconds.
+
+        Note that the PLC only has a 4kHz clock, and so the actual interval set will be rounded up to the nearest
+        acceptable interval. i,e, if the intended period is 33.33 ms, this will be rounded up to 33.50 ms.
         """
         cls.wait_for_plc()
-        frame_interval = cls._get_frame_interval_from_framerate(frequency)
+        pulse_interval = cls._get_pulse_interval(interval_ms)
 
         cls._set_pointer_position(cls._ADDR_DELAY_1)
         cls._edit_cell_input_1(cls._ADDR_CONSTANT)
@@ -146,13 +155,13 @@ class Plc():
         cls._edit_cell_input_2(cls._ADDR_CONSTANT)
 
         cls._set_pointer_position(cls._ADDR_DELAY_2)
-        cls._edit_cell_config(frame_interval*cls._CLOCK_TICKS_PER_MS)
+        cls._edit_cell_config(pulse_interval*cls._CLOCK_TICKS_PER_MS)
         
         cls._set_pointer_position(cls._ADDR_CONSTANT)
         cls._edit_cell_type(cls._VAL_CONSTANT)
         cls._edit_cell_config(cls._PLC_CONSTANT_STATE)
 
-        cls._logger.info(f"PLC set for continuous LSRM with frame interval of {frame_interval} ms")
+        cls._logger.info(f"PLC set for continuous LSRM with frame interval of {pulse_interval} ms")
 
     #PLC helpers
     @classmethod
@@ -204,22 +213,12 @@ class Plc():
         core.set_property(cls.PLC_NAME, cls._EDIT_CELL_INPUT_2, value)
 
     @classmethod
-    def _get_frame_interval(cls, step_size: int, z_scan_speed) -> int:
+    def _get_pulse_interval(cls, interval_ms: float) -> int:
         """
-        Calculates frame interval (the time interval between frames) in ms from step_size and z_scan_speed 
-        and returns it.
+        Calculates the corrected pulse interval in ms from the intended interval.
         """
         #ceil is to ensure interval is long enough so that trigger pulses aren't missed by the camera.
-        return np.ceil((step_size/(z_scan_speed*constants.UM_TO_MM))*cls._CLOCK_TICKS_PER_MS)/cls._CLOCK_TICKS_PER_MS
-
-    @classmethod
-    def _get_frame_interval_from_framerate(cls, framerate):
-        """
-        Calculates frame interval (the time interval between frames) in ms from framerate and returns it.
-
-        Really similar to globals.framerate_to_exposure(), except uses np.ceil instead of floor.
-        """
-        return np.ceil((1/framerate*constants.S_TO_MS)*cls._CLOCK_TICKS_PER_MS)/cls._CLOCK_TICKS_PER_MS
+        return np.ceil(interval_ms*cls._CLOCK_TICKS_PER_MS)/cls._CLOCK_TICKS_PER_MS
 
     @classmethod
     def get_true_z_stack_stage_speed(cls, z_scan_speed: float):
@@ -235,7 +234,6 @@ class Plc():
         so in this case, it would be 33.50 ms. If our stage speed stayed the same with this frame interval, it 
         would move more than 1 um in 33.50 ms, so we calculate the corrected stage speed to match the frame interval.
         """
-        #1 as argument for step size because we're simply trying to correct the stage so that it moves at
-        #1 um per frame interval.
-        return round(1/(cls._get_frame_interval(1, z_scan_speed))*constants.MM_TO_UM, 3)
-
+        #1/z_scan_speed because we're simply trying to correct the stage so that it moves at
+        #1 um per interval time.
+        return round(1/(cls._get_pulse_interval((1/z_scan_speed)*constants.S_TO_MS))*constants.MM_TO_UM, 3)

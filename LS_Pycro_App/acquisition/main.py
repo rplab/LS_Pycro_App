@@ -39,7 +39,7 @@ from LS_Pycro_App.models.acq_directory import AcqDirectory
 from LS_Pycro_App.hardware import Stage, Camera, Galvo, Plc, Pump
 from LS_Pycro_App.models.acq_settings import AcqSettings, AcqOrder
 from LS_Pycro_App.models.acq_settings import HTLSSettings
-from LS_Pycro_App.utils import exceptions, user_config
+from LS_Pycro_App.utils import constants, exceptions, user_config
 from LS_Pycro_App.utils.pycro import core, studio
 
 
@@ -155,12 +155,13 @@ class CLSAcquisition(Acquisition, HardwareAcquisition):
             Galvo.set_dslm_mode()
 
     def _init_plc(self):
-        Plc.set_for_z_stack(self._acq_settings.get_first_step_size(), self._adv_settings.z_stack_stage_speed)
+        interval_ms = (self._acq_settings.get_first_step_size()/self._adv_settings.z_stack_stage_speed)*constants.S_TO_MS
+        Plc.set_to_external_trigger_mode(interval_ms)
 
     def _reset_hardware(self):
         #set PLC to pulse continuously to send signal to camera in case it's frozen
         #in external trigger mode.
-        Plc.set_continuous_pulses(30)
+        Plc.set_to_continuous_pulse_mode(constants.CAMERA_RECOVERY_PULSE_INTERVAL_MS)
         core.stop_sequence_acquisition()
         Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
         Camera.set_burst_mode()
@@ -221,13 +222,14 @@ class HTLSAcquisition(Acquisition, HardwareAcquisition):
             Galvo.set_dslm_mode()
 
     def _init_plc(self):
-        Plc.set_for_z_stack(self._htls_settings.fish_settings.region_list[0].z_stack_step_size, self._adv_settings.z_stack_stage_speed)
+        interval_ms = self._htls_settings.fish_settings.region_list[0].z_stack_step_size/self._adv_settings.z_stack_stage_speed*constants.S_TO_MS
+        Plc.set_to_external_trigger_mode(interval_ms)
 
     def _reset_hardware(self):
         Pump.terminate()
         #set PLC to pulse continuously to send signal to camera in case it's frozen
         #in external trigger mode.
-        Plc.set_continuous_pulses(30)
+        Plc.set_to_continuous_pulse_mode(constants.CAMERA_RECOVERY_PULSE_INTERVAL_MS)
         core.stop_sequence_acquisition()
         Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
         Camera.set_burst_mode()

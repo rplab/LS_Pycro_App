@@ -6,7 +6,7 @@ from PyQt5 import QtGui
 
 from LS_Pycro_App.hardware import Galvo, Camera, Plc, exceptions
 from LS_Pycro_App.views import GalvoDialog
-from LS_Pycro_App.utils import general_functions
+from LS_Pycro_App.utils import constants, general_functions
 
 
 class GalvoController(object):
@@ -203,7 +203,7 @@ class GalvoController(object):
         with contextlib.suppress(exceptions.HardwareException):
             if self.galvo_dialog.scanning_check_box.isChecked():
                 if Galvo.settings.is_lsrm:
-                    Plc.set_continuous_pulses(Galvo.settings.lsrm_framerate)
+                    Plc.set_to_continuous_pulse_mode((1/Galvo.settings.lsrm_framerate)*constants.S_TO_MS)
                     Galvo.set_lsrm_mode()
                 else:
                     Galvo.set_dslm_mode()
