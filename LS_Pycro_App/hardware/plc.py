@@ -78,22 +78,20 @@ class Plc():
         #waiting for device is a common occurance just to make sure
         #device isn't busy with other tasks while setting properties
         cls.wait_for_plc()
-        #The frame interval is just the interval between pulses, determined
-        #by the step size and scan speed. The values passed here are just the default
-        #step size and z_scan_speed (didn't want an unnecessary import)
-        frame_interval = cls._get_frame_interval(step_size=1, z_scan_speed=30)
+        # initalize to 33.33 ms, the period for 30 Hz.
+        pulse_iterval = cls._get_pulse_interval(33.33)
         
         cls._set_cell(cls._ADDR_STAGE_TTL, cls._VAL_INPUT, 0, 0, 0)
         cls._set_cell(cls._ADDR_DELAY_1, cls._VAL_DELAY, 0, cls._ADDR_STAGE_TTL, cls._ADDR_CLK)
         cls._set_cell(cls._ADDR_OR, cls._VAL_OR, 0, cls._ADDR_DELAY_1, cls._ADDR_DELAY_2)
         cls._set_cell(cls._ADDR_AND, cls._VAL_AND, 0, cls._ADDR_OR, cls._ADDR_STAGE_TTL)
-        cls._set_cell(cls._ADDR_DELAY_2, cls._VAL_DELAY, frame_interval*cls._CLOCK_TICKS_PER_MS, cls._ADDR_AND, cls._ADDR_CLK)
+        cls._set_cell(cls._ADDR_DELAY_2, cls._VAL_DELAY, pulse_iterval*cls._CLOCK_TICKS_PER_MS, cls._ADDR_AND, cls._ADDR_CLK)
         cls._set_cell(cls._ADDR_ONE_SHOT, cls._VAL_ONE_SHOT, cls._TRIGGER_PULSE_WIDTH, cls._ADDR_AND, cls._ADDR_CLK)
         cls._set_cell(cls._ADDR_CAM_OUT, cls._VAL_OUTPUT, cls._ADDR_ONE_SHOT, 0, 0)
 
         cls.pulse_mode = True
 
-        cls._logger.info(f"PLC initialized to pulse mode with period {frame_interval} ms")
+        cls._logger.info(f"PLC initialized to pulse mode with pulse interval {pulse_iterval} ms")
 
     @classmethod
     @handle_exception
