@@ -23,6 +23,7 @@ all methods that rely on an instance of AcquisitionSettings should be set in acq
 
 import shutil
 from abc import ABC, abstractmethod
+import time
 
 import numpy as np
 
@@ -115,17 +116,14 @@ class ImagingSequence(ABC):
     def _pre_acquisition_hardware_init(self, exposure):
         Camera.set_exposure(exposure)
         if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
-            if Galvo:
-                if Galvo.settings.is_lsrm:
-                    framerate = general_functions.exposure_to_frequency(exposure)
-                    Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
-                    Galvo.set_lsrm_mode()
-                    Plc.set_continuous_pulses(framerate)
-                    Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-                else:
-                    Camera.set_burst_mode()
-        elif Camera == LS_Pycro_App.hardware.camera.Pco:
-            Camera.set_burst_mode()
+            if Galvo and Galvo.settings.is_lsrm:
+                framerate = general_functions.exposure_to_frequency(exposure)
+                Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
+                Galvo.set_lsrm_mode()
+                Plc.set_continuous_pulses(framerate)
+                Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
+            else:
+                Camera.set_burst_mode()
 
     def _snap_image(self, frame_num: int, channel_num: int = 0):
         """
@@ -315,7 +313,14 @@ class ZStack(ImagingSequence):
             else:
                 Camera.set_sync_readout_mode()
         elif microscope == MicroscopeConfig.WILLAMETTE:
-            Camera.set_ext_trig_mode()
+            if Camera == LS_Pycro_App.hardware.camera.Pco:
+                Camera.set_ext_trig_mode()
+            elif self._adv_settings.edge_trigger_enabled or self._region.z_stack_step_size > 1:
+                #Edge trigger caps exposure below the frame interval, so it's only used when a
+                #custom (shorter) exposure is wanted. See Camera.get_max_edge_trigger_exposure().
+                Camera.set_edge_trigger_mode()
+            else:
+                Camera.set_sync_readout_mode()
 
     def _camera_timeout_response(self):
         #calls default camera reset function from super class
@@ -361,6 +366,11 @@ class ZStack(ImagingSequence):
                 self._create_datastore_with_summary(channel)
                 self._initialize_z_stack()
                 self._start_sequence_acquisition(self._region.z_stack_num_frames)
+                expected_duration_s = (
+                    self._region.z_stack_num_frames * self._region.z_stack_step_size
+                    / (self._adv_settings.z_stack_stage_speed * 1000.0)
+                )
+                t_start = time.monotonic()
                 Stage.scan_start(self._adv_settings.z_stack_stage_speed)
                 try:
                     for update_message in self._wait_for_sequence_images():
@@ -374,14 +384,23 @@ class ZStack(ImagingSequence):
                         #deletes images, unless it's the final attempt
                         shutil.rmtree(self._acq_directory.get_directory())
                 else:
+                    elapsed = time.monotonic() - t_start
+                    if elapsed < 0.5 * expected_duration_s:
+                        self._datastore.close_and_move_files()
+                        raise exceptions.HardwareException(
+                            f'Z-stack completed in {elapsed:.2f}s, expected {expected_duration_s:.2f}s. '
+                            'Camera trigger timing is broken - aborting to prevent corrupting more timepoints.'
+                        )
                     self._datastore.close_and_move_files()
                     #breaks upon success
                     break
 
     def _initialize_z_stack(self):
-        if not self._acq_settings.is_step_size_same():
-            if not Galvo or (Galvo.settings.is_lsrm and (self._region.snap_enabled or self._region.video_enabled)):
-                Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
+        # Always re-apply PLC z-stack config. The previous outer guard skipped this
+        # when all regions shared a step size, allowing perturbed PLC state to persist
+        # across the entire timeseries.
+        if not Galvo or (Galvo.settings.is_lsrm and (self._region.snap.enabled or self._region.video_enabled)):
+            Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
         Stage.set_z_position(self._region.z_stack_start_pos)
         Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
 
@@ -403,7 +422,7 @@ class SpectralZStack(ZStack):
                     Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
                 else:
                     Camera.set_burst_mode()
-        elif Camera == LS_Pycro_App.hardware.camera.Pco:
+        elif Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
             Camera.set_burst_mode()
 
     def _set_summary_metadata(self, channel):
@@ -446,7 +465,12 @@ class DeconZStack(ZStack):
             else:
                 Camera.set_sync_readout_mode()
         elif microscope == MicroscopeConfig.WILLAMETTE:
-            Camera.set_ext_trig_mode()
+            if Camera == LS_Pycro_App.hardware.camera.Pco:
+                Camera.set_ext_trig_mode()
+            elif self._adv_settings.edge_trigger_enabled or self._region.z_stack_step_size > 1:
+                Camera.set_edge_trigger_mode()
+            else:
+                Camera.set_sync_readout_mode()
 
     def _set_summary_metadata(self, channel):
         summary_builder = pycro.SummaryMetadataBuilder().z(self._region.z_stack_num_frames).t(DeconZStack._DECON_NUM).step(
@@ -510,8 +534,7 @@ class DeconZStack(ZStack):
                     Galvo.settings.focus = set_focus
 
     def _initialize_z_stack(self):
-        if not self._acq_settings.is_step_size_same():
-            Plc.set_for_z_stack(self._region.z_stack_step_size,  self._adv_settings.z_stack_stage_speed)
+        Plc.set_for_z_stack(self._region.z_stack_step_size,  self._adv_settings.z_stack_stage_speed)
         Stage.set_z_position(self._region.z_stack_start_pos)
         Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
 
