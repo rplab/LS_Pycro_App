@@ -108,7 +108,7 @@ class Plc():
             z-stack step_size in um
 
         #### stage_scan_speed
-            z-stack scan speed in mm/s
+            z-stack scan speed in um/s
         """
         cls.wait_for_plc()
 

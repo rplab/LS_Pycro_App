@@ -366,9 +366,11 @@ class ZStack(ImagingSequence):
                 self._create_datastore_with_summary(channel)
                 self._initialize_z_stack()
                 self._start_sequence_acquisition(self._region.z_stack_num_frames)
+                #num_frames*step_size is the scan distance in um; stage_speed is in um/s,
+                #so their quotient is already in seconds (no extra unit factor).
                 expected_duration_s = (
                     self._region.z_stack_num_frames * self._region.z_stack_step_size
-                    / (self._adv_settings.z_stack_stage_speed * 1000.0)
+                    / self._adv_settings.z_stack_stage_speed
                 )
                 t_start = time.monotonic()
                 Stage.scan_start(self._adv_settings.z_stack_stage_speed)
@@ -399,7 +401,7 @@ class ZStack(ImagingSequence):
         # Always re-apply PLC z-stack config. The previous outer guard skipped this
         # when all regions shared a step size, allowing perturbed PLC state to persist
         # across the entire timeseries.
-        if not Galvo or (Galvo.settings.is_lsrm and (self._region.snap.enabled or self._region.video_enabled)):
+        if not Galvo or (Galvo.settings.is_lsrm and (self._region.snap_enabled or self._region.video_enabled)):
             Plc.set_for_z_stack(self._region.z_stack_step_size, self._adv_settings.z_stack_stage_speed)
         Stage.set_z_position(self._region.z_stack_start_pos)
         Stage.initialize_scan(self._region.z_stack_start_pos, self._region.z_stack_end_pos)
@@ -412,17 +414,13 @@ class SpectralZStack(ZStack):
     """
     def _pre_acquisition_hardware_init(self, exposure):
         Camera.set_exposure(exposure)
-        if Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
-            if Galvo:
-                if Galvo.settings.is_lsrm:
-                    framerate = general_functions.exposure_to_frequency(exposure)
-                    Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
-                    Galvo.set_lsrm_mode()
-                    Plc.set_continuous_pulses(framerate)
-                    Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-                else:
-                    Camera.set_burst_mode()
-        elif Camera == LS_Pycro_App.hardware.camera.Hamamatsu:
+        if Galvo and Galvo.settings.is_lsrm:
+            framerate = general_functions.exposure_to_frequency(exposure)
+            Galvo.settings.lsrm_framerate = min(framerate, Camera.LSRM_MAX_FRAMERATE)
+            Galvo.set_lsrm_mode()
+            Plc.set_continuous_pulses(framerate)
+            Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
+        else:
             Camera.set_burst_mode()
 
     def _set_summary_metadata(self, channel):
