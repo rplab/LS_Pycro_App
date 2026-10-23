@@ -385,8 +385,9 @@ class Video(ImagingSequence):
                 yield f"Acquiring {channel} {self._get_name()}"
                 #On a reattempt, hardware is re-initialized because _camera_timeout_response() leaves the PLC
                 #pulsing at 20 Hz, which would otherwise set the frame rate of LSRM and dual-camera videos.
-                #(Exposure is z_stack_exposure, as in the original code.)
-                self._init_hardware_for_channel(channel, self._adv_settings.z_stack_exposure, force=attempt_num > 0)
+                #(Before Oct 2026 videos used z_stack_exposure here by mistake, so the region's video exposure
+                #setting, and the end-videos exposure, were ignored.)
+                self._init_hardware_for_channel(channel, self._region.video_exposure, force=attempt_num > 0)
                 pycro.set_channel(channel)
                 self._create_datastore_with_summary(channel)
                 self._start_sequence_acquisition(self._region.video_num_frames)
