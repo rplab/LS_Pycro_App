@@ -10,7 +10,7 @@ from LS_Pycro_App.models.acq_settings import AcqSettings, HTLSSettings, Fish, Re
 from LS_Pycro_App.models.acq_directory import AcqDirectory
 from LS_Pycro_App.acquisition.imaging import ImagingSequence, Snap, Video, SpectralVideo, ZStack, SpectralZStack, DeconZStack
 from LS_Pycro_App.hardware import Stage, Camera, Pump, Valves
-from LS_Pycro_App.utils import constants, dir_functions, exceptions, fish_detection, pycro
+from LS_Pycro_App.utils import acq_record, constants, dir_functions, exceptions, fish_detection, pycro
 from LS_Pycro_App.utils.pycro import BF_CHANNEL, core
 
 
@@ -70,8 +70,10 @@ class SequenceHelpers():
             self._abort_check()
             if region.imaging_enabled:
                 self._update_region_num(region_num)
+                acq_record.start_region()
                 self._move_to_region(region)
                 self._run_imaging_sequences(region)
+                acq_record.end_region()
 
     def _run_imaging_sequences(self, region: Region):
         self._abort_check()
@@ -270,10 +272,14 @@ class TimeSampAcquisition():
         for time_point in range(self._acq_settings.num_time_points):
             start_time = self._time_point_helpers._get_time()
             self._time_point_helpers._update_time_point_num(time_point)
+            acq_record.start_timepoint()
             self._acquire_fish()
-            if self._time_point_helpers._is_time_point_left(time_point):
-                if self._acq_settings.total_num_regions > 1:
-                    self._sequence_helpers._move_to_region(start_region)
+            is_time_point_left = self._time_point_helpers._is_time_point_left(time_point)
+            if is_time_point_left and self._acq_settings.total_num_regions > 1:
+                self._sequence_helpers._move_to_region(start_region)
+            #aborts the acquisition if too many consecutive timepoints had hardware problems
+            acq_record.end_timepoint()
+            if is_time_point_left:
                 self._time_point_helpers._wait_for_next_time_point(start_time)
             else:
                 break
@@ -336,9 +342,14 @@ class SampTimeAcquisition():
             self._sequence_helpers._update_directory(fish.size_mb)
             start_time = self._time_point_helpers._get_time()
             self._time_point_helpers._update_time_point_num(time_point)
+            acq_record.start_timepoint()
             self._sequence_helpers._acquire_regions(fish)
-            if self._time_point_helpers._is_time_point_left(time_point):
+            is_time_point_left = self._time_point_helpers._is_time_point_left(time_point)
+            if is_time_point_left:
                 self._sequence_helpers._move_to_region(start_region)
+            #aborts the acquisition if too many consecutive timepoints had hardware problems
+            acq_record.end_timepoint()
+            if is_time_point_left:
                 self._time_point_helpers._wait_for_next_time_point(start_time)
             else:
                 break
@@ -391,9 +402,16 @@ class PosTimeAcquisition():
             self._sequence_helpers._update_directory(region.size_mb)
             start_time = self._time_point_helpers._get_time()
             self._time_point_helpers._update_time_point_num(time_point)
+            acq_record.start_timepoint()
+            acq_record.start_region()
             self._sequence_helpers._run_imaging_sequences(region)
-            if self._time_point_helpers._is_time_point_left(time_point):
+            acq_record.end_region()
+            is_time_point_left = self._time_point_helpers._is_time_point_left(time_point)
+            if is_time_point_left:
                 Stage.set_z_position(region.z_pos)
+            #aborts the acquisition if too many consecutive timepoints had hardware problems
+            acq_record.end_timepoint()
+            if is_time_point_left:
                 self._time_point_helpers._wait_for_next_time_point(start_time)
             else:
                 break

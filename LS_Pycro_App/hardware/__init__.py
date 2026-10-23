@@ -8,7 +8,9 @@ Pump = None
 Rotation = None
 Valves = None
 if microscope == MicroscopeConfig.WILLAMETTE:
-    from LS_Pycro_App.hardware.camera import Pco as Camera
+    #Willamette's PCO camera is broken and has been replaced by a Hamamatsu (2026). The Pco class is
+    #kept in hardware/camera.py in case a PCO is used again.
+    from LS_Pycro_App.hardware.camera import Hamamatsu as Camera
     from LS_Pycro_App.hardware.stage import WilStage as Stage
 elif microscope == MicroscopeConfig.KLAMATH:
     import LS_Pycro_App.hardware.galvo as Galvo

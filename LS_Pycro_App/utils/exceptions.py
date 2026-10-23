@@ -50,3 +50,19 @@ class BubbleException(Exception):
     """
     Should be raised if bubble is detected during detection.
     """
+
+
+class StagePositionException(Exception):
+    """
+    Raised when the stage position read back after a move differs from the target by more than
+    Stage.POSITION_TOLERANCE_UM.
+    """
+    pass
+
+
+class TooManySuspectTimepointsException(Exception):
+    """
+    Raised to abort a timelapse after too many consecutive timepoints had hardware problems
+    (see utils/acq_record.py).
+    """
+    pass

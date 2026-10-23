@@ -56,6 +56,8 @@ class GalvoSettings(object):
     FOCUS_CHANNEL = "Dev1/ao2"
     OFFSET_CHANNEL = "Dev1/ao3"
     CAM_CHANNEL = "Dev1/Ctr0"
+    #trigger output for the second camera (Klamath dual-camera acquisitions)
+    CAM_CHANNEL_2 = "Dev1/Ctr1"
     PLC_INPUT_CHANNEL = 'PFI0'
     DSLM_NUM_SAMPLES = 600
     DSLM_FREQ = 600

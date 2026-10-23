@@ -1,10 +1,38 @@
 import logging
+import time
 from abc import ABC, abstractmethod
 
 from LS_Pycro_App.hardware.exceptions_handle import handle_exception
 from LS_Pycro_App.utils.abc_attributes_wrapper import abstractattributes
-from LS_Pycro_App.utils import general_functions, constants
+from LS_Pycro_App.utils import general_functions, constants, exceptions
 from LS_Pycro_App.utils.pycro import studio, core
+
+
+#Micro-Manager "Multi Camera" utility device. On Klamath it combines HamamatsuHam_DCAM and
+#HamamatsuHam_DCAM2 for simultaneous dual-camera acquisition (see KLA_23April2026_CLS3.cfg).
+MULTI_CAM_NAME = "MultiCamera"
+
+
+def _get_default_camera_name() -> str:
+    """
+    Returns the label of the camera Micro-Manager is configured to use (Core-Camera).
+
+    If the app previously exited in the middle of a dual-camera acquisition, Core-Camera may still be
+    the MultiCamera device; in that case the first physical camera is returned.
+    """
+    name = core.get_camera_device()
+    if name == MULTI_CAM_NAME:
+        name = core.get_property(MULTI_CAM_NAME, "Physical Camera 1")
+    return name
+
+
+def select_multi_camera():
+    """
+    Makes the MultiCamera device Micro-Manager's active camera (dual-camera acquisitions, Klamath only).
+    Must not be called while a sequence acquisition (including live mode) is running.
+    """
+    if core.get_camera_device() != MULTI_CAM_NAME:
+        core.set_camera_device(MULTI_CAM_NAME)
 
 
 @abstractattributes
@@ -22,10 +50,25 @@ class Camera(ABC):
         pass
     
     _logger = logging.getLogger(__name__)
-    CAM_NAME : str = core.get_camera_device()
+    CAM_NAME : str = _get_default_camera_name()
 
     _WAIT_FOR_IMAGE_MS : float = 0.01
+    #A snap gives up if no frame arrives within (exposure + this margin).
+    SNAP_TIMEOUT_MARGIN_S : float = 2.0
     DEFAULT_EXPOSURE : float = 20
+
+    @classmethod
+    def select(cls):
+        """
+        Makes this camera Micro-Manager's active (Core-Camera) device, if it isn't already.
+
+        MMCore refuses to change the camera while a sequence acquisition (which includes live mode) is
+        running, even if the requested camera is the current one, so set_camera_device() is only called
+        when the camera actually needs to change. Callers must make sure no sequence acquisition is running.
+        """
+        if core.get_camera_device() != cls.CAM_NAME:
+            core.set_camera_device(cls.CAM_NAME)
+            cls._logger.info(f"Active camera set to {cls.CAM_NAME}")
     
     @classmethod
     @handle_exception
@@ -38,8 +81,9 @@ class Camera(ABC):
     @classmethod
     @handle_exception
     def set_exposure(cls, exposure: float):
-        core.set_exposure(exposure)
-        cls._logger.info(f"Camera exposure set to {exposure} ms")
+        #Sets the exposure of this specific camera (by label), without changing the active camera.
+        core.set_exposure(cls.CAM_NAME, exposure)
+        cls._logger.info(f"{cls.CAM_NAME} exposure set to {exposure} ms")
         
     @classmethod
     @handle_exception
@@ -53,6 +97,7 @@ class Camera(ABC):
         """
         Starts continuous sequence acquisition of number of images specified by num_frames.
         """
+        cls.select()
         #start_sequence_acquisition takes the arguments (long numImages, double intervalMs, bool stopOnOverflow)
         core.start_sequence_acquisition(num_frames, 0, True)
         cls._logger.info(f"Started sequence acquistiion of {num_frames} frames")
@@ -65,11 +110,21 @@ class Camera(ABC):
         utils.pycro.pop_next_image(), which will return the image as a Micro-Manager image object.
         """
         core.stop_sequence_acquisition()
+        cls.select()
+        exposure_ms = core.get_exposure()
         #Originally when I scripted with MM, I would just use the snap() method in the studio.acquisition class, 
         # but this doesn't work with lsrm for some reason.
         core.start_sequence_acquisition(1, 0, True)
-        #waits until image is actually in buffer. 
+        #Waits until image is actually in buffer, but not forever: if no frame arrives within
+        #exposure + SNAP_TIMEOUT_MARGIN_S (e.g. an external trigger never arrives), the snap fails loudly
+        #instead of hanging the acquisition indefinitely.
+        deadline = time.monotonic() + exposure_ms*constants.MS_TO_S + cls.SNAP_TIMEOUT_MARGIN_S
         while not core.get_remaining_image_count() > 0:
+            if time.monotonic() > deadline:
+                core.stop_sequence_acquisition()
+                raise exceptions.CameraTimeoutException(
+                    f"Snap timed out: {cls.CAM_NAME} received no frame within "
+                    f"{exposure_ms} ms exposure + {cls.SNAP_TIMEOUT_MARGIN_S} s")
             core.sleep(cls._WAIT_FOR_IMAGE_MS)
         core.stop_sequence_acquisition()
         cls._logger.info(f"Snapped image")
@@ -88,10 +143,20 @@ class Camera(ABC):
     @handle_exception
     def start_live_acquisition(cls):
         """
-        Turns live mode off in Micro-Manager, stopping live acquisition.
+        Turns live mode on in Micro-Manager with this camera. Safe to call when live mode is already on.
         """
+        live = studio.live()
+        if live.is_live_mode_on():
+            if core.get_camera_device() == cls.CAM_NAME:
+                cls._logger.info(f"Live mode already on")
+                return
+            #Live is running on a different camera (e.g. MultiCamera); stop it so the camera can be changed.
+            live.set_live_mode_on(False)
+        if core.is_sequence_running():
+            core.stop_sequence_acquisition()
+        cls.select()
         core.wait_for_device(cls.CAM_NAME)
-        studio.live().set_live_mode_on(True)
+        live.set_live_mode_on(True)
         cls._logger.info(f"Started live acquisition")
         
 
@@ -242,7 +307,7 @@ class Hamamatsu(Camera):
         cls.set_property(cls._TRIGGER_SOURCE_PROP, cls._EXTERNAL_SOURCE)
         cls.set_property(cls._TRIGGER_ACTIVE_PROP, cls._EDGE_TRIGGER)
         cls.set_property(cls._ILI_PROP, line_interval)
-        core.set_exposure(line_interval * int(num_lines))
+        core.set_exposure(cls.CAM_NAME, line_interval * int(num_lines))
 
     #helpers
     @classmethod
@@ -302,4 +367,12 @@ class Hamamatsu(Camera):
         """
         cls.set_property("Binning", f"{binning}x{binning}")
         cls.wait_for_camera()
-        
+
+
+class Hamamatsu2(Hamamatsu):
+    """
+    Second Hamamatsu camera on Klamath, used only for dual-camera acquisitions (channels named in
+    acquisition.imaging.DUAL_CAMERA_CHANNELS). Its device label is fixed because it is never the
+    Micro-Manager Core-Camera at startup.
+    """
+    CAM_NAME = "HamamatsuHam_DCAM2"

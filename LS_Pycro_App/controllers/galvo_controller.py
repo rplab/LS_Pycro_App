@@ -217,26 +217,33 @@ class GalvoController(object):
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
         Galvo.settings.is_lsrm = self.galvo_dialog.scan_mode_combo_box.currentText() == GalvoController._LSRM_NAME
         self._set_scanning_mode()
-        if self.galvo_dialog.scanning_check_box.isChecked():
-            if Galvo.settings.is_lsrm:
-                Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-            else:
-                Camera.set_burst_mode()
-                Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
-        Camera.start_live_acquisition()
+        #Camera failures are logged by handle_exception; suppressing them here keeps the dialog working.
+        #(An exception escaping a Qt slot would otherwise abort the whole app.)
+        with contextlib.suppress(exceptions.HardwareException):
+            if self.galvo_dialog.scanning_check_box.isChecked():
+                if Galvo.settings.is_lsrm:
+                    Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
+                else:
+                    Camera.set_burst_mode()
+                    Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
+            Camera.start_live_acquisition()
         self._update_dialog()
         Galvo.settings.write_to_config()
 
     def _scanning_check_box_stage_changed(self):
         # If checked, starts laser scanning
         self._logger.info(sys._getframe().f_code.co_name.strip("_"))
-        if self.galvo_dialog.scanning_check_box.isChecked():
-            if Galvo.settings.is_lsrm:
-                Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
-        elif Galvo.settings.is_lsrm:
-            Camera.set_burst_mode()
-            Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
-        Camera.start_live_acquisition()
+        #Camera failures are logged by handle_exception; suppressing them here keeps the dialog working, and
+        #the galvo mode is still set. (An exception escaping a Qt slot would otherwise abort the whole app.)
+        #The camera is still configured before the galvo/PLC, as in the original code, so LSRM timing is unchanged.
+        with contextlib.suppress(exceptions.HardwareException):
+            if self.galvo_dialog.scanning_check_box.isChecked():
+                if Galvo.settings.is_lsrm:
+                    Camera.set_lsrm_mode(Galvo.settings.lsrm_ili, Galvo.settings.lsrm_num_lines)
+            elif Galvo.settings.is_lsrm:
+                Camera.set_burst_mode()
+                Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
+            Camera.start_live_acquisition()
         self._set_scanning_mode()
 
     def _offset_big_neg_button_clicked(self):

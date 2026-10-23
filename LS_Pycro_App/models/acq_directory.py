@@ -34,9 +34,21 @@ class AcqDirectory(object):
     def set_root(self, new_root: str):
         self.root = dir_functions.get_unique_directory(f"{new_root}/{self.FOLDER_NAME}")
 
+    def get_labels(self) -> tuple[str, str, str]:
+        """
+        Returns (time point, fish, region) labels, e.g. ("timepoint3", "fish1", "pos2").
+        """
+        return self._time_point, self._fish, self._region
+
     def get_file_name(self) -> str:
         return f"{self._fish}/{self._region}/{self._acq_type}/{self._time_point}".replace("/", "_")
 
     def get_directory(self) -> str:
         return f"{self.root}/{self._fish}/{self._region}/{self._acq_type}/{self._time_point}/{self.get_file_name()}"
+
+    def get_directory_cam2(self) -> str:
+        """
+        Directory for images from the second camera in dual-camera acquisitions (Klamath only).
+        """
+        return f"{self.root}/{self._fish}/{self._region}/{self._acq_type}_cam2/{self._time_point}/{self.get_file_name()}"
     

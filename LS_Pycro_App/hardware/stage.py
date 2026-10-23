@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from LS_Pycro_App.hardware import Plc
 from LS_Pycro_App.hardware.exceptions_handle import handle_exception
-from LS_Pycro_App.utils import constants
+from LS_Pycro_App.utils import constants, exceptions
 from LS_Pycro_App.utils.abc_attributes_wrapper import abstractattributes
 from LS_Pycro_App.utils.pycro import core
 
@@ -67,7 +67,11 @@ class Stage(ABC):
     _JOYSTICK_ENABLE_COMMAND : str = "J X+ Y+ Z+"
     _JOYSTICK_Z_SPEED_COMMAND : str = "JSSPD Z=50"
 
+    #Default (non-scan) stage speed. Microscope-specific; KlaStage overrides it.
     _DEFAULT_STAGE_SPEED_UM_PER_S : int = 1000
+    #After move_stage(), the stage position is read back and must be within this distance (um) of the
+    #target on every axis, otherwise the move is treated as a failure (see _verify_position()).
+    POSITION_TOLERANCE_UM : float = 5
     #um buffer added to SCAN command so that camera takes enough images
     _BASE_Z_STACK_BUFFER : int = 2
     #number of um per um increase in buffer. Found empirically (reluctantly). See _get_z_stack_buffer().
@@ -263,7 +267,23 @@ class Stage(ABC):
             cls.set_z_position(z_pos)
             cls.wait_for_z_stage()
 
+        cls._verify_position(x_pos, y_pos, z_pos)
         cls._logger.info(f"Stage position set to ({x_pos}, {y_pos}, {z_pos})")
+
+    @classmethod
+    def _verify_position(cls, x_pos, y_pos, z_pos):
+        """
+        Reads back the stage position and raises StagePositionException if any axis is more than
+        POSITION_TOLERANCE_UM from its target. Because move_stage() is wrapped by handle_exception, a
+        mismatch causes the whole move to be re-sent once; if it is still wrong, the move fails. Either
+        way the mismatch is recorded in the acquisition record (utils/acq_record.py).
+        """
+        target = (x_pos, y_pos, z_pos)
+        actual = (cls.get_x_position(), cls.get_y_position(), cls.get_z_position())
+        if any(abs(a - t) > cls.POSITION_TOLERANCE_UM for a, t in zip(actual, target)):
+            raise exceptions.StagePositionException(
+                f"Stage position mismatch: target {target} um, actual {actual} um "
+                f"(tolerance {cls.POSITION_TOLERANCE_UM} um)")
             
     @classmethod
     @handle_exception
@@ -413,6 +433,10 @@ class WilStage(Stage):
 class KlaStage(Stage):
     def is_z_stage_first(current_x_pos, destination_x_pos):
         return current_x_pos > destination_x_pos
+
+    #Klamath uses a slower default speed than Willamette. (History: changed from 1000; an SMR note from
+    #30 April 2025 says "changed from 1000 to 750", but the value on the Klamath computer was 800.)
+    _DEFAULT_STAGE_SPEED_UM_PER_S = 800
 
     STAGE_SERIAL_LABEL = "TigerCommHub"
     _X_AXIS_LABEL = "X"

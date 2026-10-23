@@ -48,6 +48,7 @@ import numpy as np
 import nidaqmx
 from nidaqmx.stream_writers import AnalogMultiChannelWriter
 
+from LS_Pycro_App.controllers.select_controller import microscope, MicroscopeConfig
 from LS_Pycro_App.hardware.exceptions_handle import handle_exception
 from LS_Pycro_App.models.galvo_settings import GalvoSettings
 from LS_Pycro_App.utils import constants
@@ -62,6 +63,10 @@ settings.init_from_config()
 _logger = logging.getLogger(__name__)
 _scan_output = nidaqmx.Task()
 _cam_output = nidaqmx.Task()
+#Klamath has a second camera (dual-camera acquisitions), triggered from a second DAQ counter
+#(GalvoSettings.CAM_CHANNEL_2) with the same pulses as the first. Not used on other microscopes.
+_DUAL_CAMERA_TRIGGER = microscope == MicroscopeConfig.KLAMATH
+_cam_output2 = nidaqmx.Task()
 
 
 @handle_exception
@@ -96,6 +101,13 @@ def set_dslm_mode():
     _cam_output.timing.cfg_implicit_timing(samps_per_chan=1)
     _cam_output.triggers.start_trigger.cfg_dig_edge_start_trig(settings.PLC_INPUT_CHANNEL)
     _cam_output.triggers.start_trigger.retriggerable = True
+    if _DUAL_CAMERA_TRIGGER:
+        _cam_output2.co_channels.add_co_pulse_chan_time(settings.CAM_CHANNEL_2,
+                                                        low_time=settings.PULSE_TIME_S,
+                                                        high_time=settings.PULSE_TIME_S)
+        _cam_output2.timing.cfg_implicit_timing(samps_per_chan=1)
+        _cam_output2.triggers.start_trigger.cfg_dig_edge_start_trig(settings.PLC_INPUT_CHANNEL)
+        _cam_output2.triggers.start_trigger.retriggerable = True
     # Sets scan data as triangle wave. This causes the galvo to scan back
     # and forth continuously across withe scan_width range, creating the
     # time-averaged light sheet.
@@ -106,6 +118,8 @@ def set_dslm_mode():
     writer.write_many_sample(np.array([focus, scan]))
     _scan_output.start()
     _cam_output.start()
+    if _DUAL_CAMERA_TRIGGER:
+        _cam_output2.start()
     _logger.info(f"Galvo set to dslm mode.")
 
 
@@ -180,12 +194,23 @@ def set_lsrm_mode():
     _cam_output.timing.cfg_implicit_timing(samps_per_chan=1)
     _cam_output.triggers.start_trigger.cfg_dig_edge_start_trig(settings.PLC_INPUT_CHANNEL)
     _cam_output.triggers.start_trigger.retriggerable = True
+    if _DUAL_CAMERA_TRIGGER:
+        _cam_output2.co_channels.add_co_pulse_chan_time(settings.CAM_CHANNEL_2,
+                                                        initial_delay=settings.lsrm_cam_delay*constants.MS_TO_S,
+                                                        low_time=settings.PULSE_TIME_S,
+                                                        high_time=settings.PULSE_TIME_S
+                                                        ).co_enable_initial_delay_on_retrigger = True
+        _cam_output2.timing.cfg_implicit_timing(samps_per_chan=1)
+        _cam_output2.triggers.start_trigger.cfg_dig_edge_start_trig(settings.PLC_INPUT_CHANNEL)
+        _cam_output2.triggers.start_trigger.retriggerable = True
     scan = _get_lsrm_scan_sample()
     focus = _get_focus_sample(settings.lsrm_num_samples + 1)
     writer = AnalogMultiChannelWriter(_scan_output.out_stream)
     writer.write_many_sample(np.array([focus, scan]))
     _scan_output.start()
     _cam_output.start()
+    if _DUAL_CAMERA_TRIGGER:
+        _cam_output2.start()
     _logger.info(f"Galvo set to lsrm mode.")
 
 
@@ -219,6 +244,7 @@ def exit():
     set_dslm_mode()
     _scan_output.close()
     _cam_output.close()
+    _cam_output2.close()
 
 
 def _get_alignment_scan_sample(num_samples: int, offset: float):
@@ -256,10 +282,12 @@ def _reset_tasks():
     """
     closes DAQ tasks and creates new, empty tasks with the same variable names.
     """
-    global _scan_output, _cam_output
+    global _scan_output, _cam_output, _cam_output2
     _scan_output.close()
     _cam_output.close()
+    _cam_output2.close()
     _scan_output = nidaqmx.Task()
     _cam_output = nidaqmx.Task()
+    _cam_output2 = nidaqmx.Task()
     _scan_output.ao_channels.add_ao_voltage_chan(settings.FOCUS_CHANNEL)
     _scan_output.ao_channels.add_ao_voltage_chan(settings.OFFSET_CHANNEL)

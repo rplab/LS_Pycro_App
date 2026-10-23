@@ -39,7 +39,7 @@ from LS_Pycro_App.models.acq_directory import AcqDirectory
 from LS_Pycro_App.hardware import Stage, Camera, Galvo, Plc, Pump
 from LS_Pycro_App.models.acq_settings import AcqSettings, AcqOrder
 from LS_Pycro_App.models.acq_settings import HTLSSettings
-from LS_Pycro_App.utils import exceptions, user_config
+from LS_Pycro_App.utils import acq_record, exceptions, user_config
 from LS_Pycro_App.utils.pycro import core, studio
 
 
@@ -123,14 +123,24 @@ class CLSAcquisition(Acquisition, HardwareAcquisition):
             self._init_mm()
             self._init_hardware()
             self._write_acquisition_notes(self._acq_directory.root)
+            #record of hardware problems per timepoint/fish/region (acquisition_record.csv)
+            acq_record.begin(self._acq_directory)
             self._abort_flag.abort = False
             self._get_acq_sequence().run()
         except exceptions.AbortAcquisitionException:
+            acq_record.finish("aborted by user" if self._abort_flag.abort else "aborted")
             self._abort_acquisition()
-        except:
+        except exceptions.TooManySuspectTimepointsException as e:
+            acq_record.finish(f"aborted: {e}")
+            self._logger.exception("acquisition aborted due to repeated hardware problems")
+            self._abort_acquisition()
+            self._acq_gui.status_update("Aborted: hardware problems in consecutive timepoints. See acquisition_record.csv.")
+        except Exception as e:
+            acq_record.finish(f"failed: {e!r}")
             self._logger.exception("exception raised during acquisition")
             self._abort_acquisition()
         else:
+            acq_record.finish("completed")
             self._reset_hardware()
             studio.app().refresh_gui()
             self._acq_gui.status_update("Your acquisition was successful!")
@@ -162,6 +172,8 @@ class CLSAcquisition(Acquisition, HardwareAcquisition):
         #in external trigger mode.
         Plc.set_continuous_pulses(30)
         core.stop_sequence_acquisition()
+        #a dual-camera acquisition (Klamath) may have left the MultiCamera device active
+        Camera.select()
         Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
         Camera.set_burst_mode()
         Plc.init_pulse_mode()
@@ -229,6 +241,8 @@ class HTLSAcquisition(Acquisition, HardwareAcquisition):
         #in external trigger mode.
         Plc.set_continuous_pulses(30)
         core.stop_sequence_acquisition()
+        #a dual-camera acquisition (Klamath) may have left the MultiCamera device active
+        Camera.select()
         Camera.set_exposure(Camera.DEFAULT_EXPOSURE)
         Camera.set_burst_mode()
         Plc.init_pulse_mode()

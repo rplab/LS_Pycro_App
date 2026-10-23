@@ -281,6 +281,13 @@ class MultipageDatastore():
 
         Micro-Manager creates an extra, redundant folder, so move the files to parent and then
         delete parent folder.
+
+        Data layout note: for a period before the codebases were unified in Oct 2026 (start date not
+        recorded), the Klamath computer had this move disabled, so Klamath data from that period keeps
+        the extra folder level, e.g. .../timepoint1/fish1_pos1_zstack_GFP_timepoint1/<files> instead of
+        .../timepoint1/<files>. Willamette data (and Klamath data before and after) has the files
+        directly in the timepoint folder. If the move fails, the files stay in the extra folder and an
+        error is logged (see dir_functions.move_files_to_parent()).
         """
         self.close()
         dir_functions.move_files_to_parent(self.save_path)
@@ -328,6 +335,8 @@ def get_channel_list():
 
 def set_channel(channel: str):
     core.set_config(_CHANNEL, channel)
+    #waits until all devices in the channel config have finished changing
+    core.wait_for_config(_CHANNEL, channel)
 
 
 def pop_next_image():
@@ -338,3 +347,13 @@ def pop_next_image():
     """
     tagged = core.pop_next_tagged_image()
     return studio.data().convert_tagged_image(tagged)
+
+
+def pop_next_image_with_camera_tag():
+    """
+    Like pop_next_image(), but also returns the label of the camera that took the image
+    (used to sort images in dual-camera acquisitions).
+    """
+    tagged = core.pop_next_tagged_image()
+    camera_label = tagged.tags.get("Camera", "")
+    return studio.data().convert_tagged_image(tagged), camera_label
