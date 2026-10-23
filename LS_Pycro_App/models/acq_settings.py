@@ -96,7 +96,9 @@ class Region():
     _snap_channel_list: list[str] = []
     _video_enabled: bool = False
     _video_num_frames: int = 100
-    _video_exposure: float = 20.
+    #33.333 ms matches what videos actually used before Oct 2026, when they mistakenly ran at the z-stack
+    #exposure (33.333 ms in Willamette's settings in Oct 2026) instead of this value.
+    _video_exposure: float = 33.333
     _video_channel_list: list[str] = []
 
     def __init__(self):
@@ -506,7 +508,8 @@ class AdvSettings():
     """
     def __init__(self):
         self._z_stack_exposure: float = 33.
-        self._end_videos_exposure = 20.
+        #33.333 ms: see Region._video_exposure
+        self._end_videos_exposure = 33.333
         self.spectral_z_stack_enabled: bool = False
         self.decon_z_stack_enabled: bool = False
         self.z_stack_stage_speed: int = 30
