@@ -26834,3 +26834,7 @@ venv/Scripts/tiffcomment.exe
 venv/Scripts/tifffile.exe
 venv/Scripts/__pycache__/pywin32_postinstall.cpython-312.pyc
 venv/Scripts/__pycache__/pywin32_testall.cpython-312.pyc
+
+# Created when the app runs; keep out of commits
+logs/
+__pycache__/
