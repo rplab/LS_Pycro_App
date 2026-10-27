@@ -56,6 +56,11 @@ class Camera(ABC):
     #A snap gives up if no frame arrives within (exposure + this margin).
     SNAP_TIMEOUT_MARGIN_S : float = 2.0
     DEFAULT_EXPOSURE : float = 20
+    #Exposure-setting safeguard (see _apply_exposure()). Values in ms.
+    #Requested and camera-reported exposures closer than this are treated as "the same value".
+    _SAME_EXPOSURE_TOLERANCE_MS : float = 0.5
+    #Size of the temporary change used to avoid sending the camera its current exposure.
+    _EXPOSURE_NUDGE_MS : float = 1.0
 
     @classmethod
     def select(cls):
@@ -82,8 +87,63 @@ class Camera(ABC):
     @handle_exception
     def set_exposure(cls, exposure: float):
         #Sets the exposure of this specific camera (by label), without changing the active camera.
-        core.set_exposure(cls.CAM_NAME, exposure)
+        cls._apply_exposure(exposure)
         cls._logger.info(f"{cls.CAM_NAME} exposure set to {exposure} ms")
+
+    @classmethod
+    def _apply_exposure(cls, exposure: float):
+        """
+        Sets this camera's exposure (ms), working around a fault seen on Klamath in Oct 2026 (Micro-Manager
+        2.0.3 HamamatsuHam adapter with DCAM-API 18.5): sending the camera the exposure it already has stalls
+        for ~5 s and leaves the camera at its 10 s maximum exposure, while its "Exposure" property still shows
+        the requested value. See UNIFIED_CODEBASE_NOTES.md.
+
+        1. If the camera's Exposure property already equals the request, first set a slightly different value,
+           so the camera is never sent its current exposure.
+        2. After setting, Micro-Manager's exposure for this camera (which reflected the real exposure in those
+           tests) is checked. If it doesn't match, CameraExposureException is raised; set_exposure() and
+           set_lsrm_mode() are wrapped by handle_exception, so the whole operation is retried once, recorded in
+           the acquisition record, and fails (HardwareException) if it still doesn't match.
+        """
+        current = cls._get_exposure_property()
+        if current is not None and abs(current - exposure) < cls._SAME_EXPOSURE_TOLERANCE_MS:
+            nudge = cls._EXPOSURE_NUDGE_MS if exposure + cls._EXPOSURE_NUDGE_MS <= cls.MAX_EXPOSURE \
+                else -cls._EXPOSURE_NUDGE_MS
+            core.set_exposure(cls.CAM_NAME, exposure + nudge)
+        core.set_exposure(cls.CAM_NAME, exposure)
+        actual = cls._get_core_exposure()
+        #The camera quantizes exposures (e.g. 10 -> 10.104 ms), so allow 10% + 1 ms.
+        if actual is not None and abs(actual - exposure) > 0.1*exposure + 1.0:
+            raise exceptions.CameraExposureException(
+                f"{cls.CAM_NAME}: requested exposure {exposure} ms, but camera reports {actual} ms")
+
+    @classmethod
+    def _get_exposure_property(cls):
+        """
+        The camera's "Exposure" property (ms), or None if it can't be read. On Klamath this reflects the most
+        recently requested exposure, not necessarily the real one.
+        """
+        try:
+            return float(core.get_property(cls.CAM_NAME, "Exposure"))
+        except Exception:
+            return None
+
+    @classmethod
+    def _get_core_exposure(cls):
+        """
+        Micro-Manager's exposure (ms) for this camera, or None if it can't be read (verification is then
+        skipped, with a warning).
+        """
+        try:
+            return core.get_exposure(cls.CAM_NAME)
+        except Exception:
+            try:
+                if core.get_camera_device() == cls.CAM_NAME:
+                    return core.get_exposure()
+            except Exception:
+                pass
+        cls._logger.warning(f"Could not read back {cls.CAM_NAME} exposure; exposure not verified")
+        return None
         
     @classmethod
     @handle_exception
@@ -307,7 +367,7 @@ class Hamamatsu(Camera):
         cls.set_property(cls._TRIGGER_SOURCE_PROP, cls._EXTERNAL_SOURCE)
         cls.set_property(cls._TRIGGER_ACTIVE_PROP, cls._EDGE_TRIGGER)
         cls.set_property(cls._ILI_PROP, line_interval)
-        core.set_exposure(cls.CAM_NAME, line_interval * int(num_lines))
+        cls._apply_exposure(line_interval * int(num_lines))
 
     #helpers
     @classmethod

@@ -66,3 +66,11 @@ class TooManySuspectTimepointsException(Exception):
     (see utils/acq_record.py).
     """
     pass
+
+
+class CameraExposureException(Exception):
+    """
+    Raised when a camera's exposure, read back after setting it, doesn't match the requested value
+    (see Camera._apply_exposure()).
+    """
+    pass
