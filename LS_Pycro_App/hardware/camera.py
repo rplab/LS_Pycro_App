@@ -269,12 +269,15 @@ class Pco(Camera):
 
 class Hamamatsu(Camera):
     """
-    This class contains methods to and properties to control our 
-    Hamamatsu C11440-22CU.
+    This class contains methods to and properties to control our Hamamatsu ORCA-Flash4.0 cameras.
 
-    Hamamatsu manual (Download link of PDF. Check downloads.)
+    Klamath: 2 x C13440-20C (ORCA-Flash4.0 V3), connected by CameraLink through an Active Silicon FireBird
+    AS-FBD-2XCLD-2PE8 frame grabber (camera 2 is the Hamamatsu2 class). (This comment previously said
+    C11440-22CU, the ORCA-Flash4.0 V2, whose manual the old link below pointed to.)
+    Willamette: Hamamatsu ORCA (replaced the broken PCO in 2026; model not recorded here).
 
-    https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&ved=2ahUKEwiBw9qNsZD7AhURKn0KHcDbDWQQFnoECAsQAQ&url=https%3A%2F%2Fwiki.umontreal.ca%2Fdownload%2Fattachments%2F189567146%2FHamamatsu_Orca%2520Flash%25204.0_V2_C11440-22CU_Instruction%2520Manual.pdf%3Fversion%3D1%26modificationDate%3D1627866006000%26api%3Dv2&usg=AOvVaw3vpbp7BfjOyA9mwO81xykH
+    ORCA-Flash4.0 V3 manual (PDF):
+    https://www.hamamatsu.com/content/dam/hamamatsu-photonics/sites/static/sys/en/manual/C13440-20CU_IM_En.pdf
     """
     MAX_EXPOSURE = 2000
     MIN_EXPOSURE = .010
